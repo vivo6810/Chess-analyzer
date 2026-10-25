@@ -13,3 +13,6 @@ artifacts/
 .env
 .env.*
 !.env.example
+
+# Vercel CLI state (stub project settings never committed)
+.vercel
