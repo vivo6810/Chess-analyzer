@@ -1,10 +1,10 @@
 import { Chess } from 'chess.js';
 
-import { settleClock, type ClockFields, type ClockOutcome } from './clock';
-import { getTimeControl, type TimeControl } from './time-controls';
+import { settleClock, type ClockFields, type ClockOutcome } from './clock.ts';
+import { getTimeControl, type TimeControl } from './time-controls.ts';
 
 export { settleClock };
-export type { ClockFields, ClockOutcome, ClockRules } from './clock';
+export type { ClockFields, ClockOutcome, ClockRules } from './clock.ts';
 
 export type GameOver = {
   result: '1-0' | '0-1' | '1/2-1/2';

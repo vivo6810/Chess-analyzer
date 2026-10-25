@@ -1,9 +1,9 @@
 import { randomBytes } from 'node:crypto';
 import { cookies } from 'next/headers';
 
-import { type Role } from './admin';
-import { db, now, type UserRow } from './db';
-import { hashPassword, verifyPassword } from './password';
+import { type Role } from './admin.ts';
+import { db, now, type UserRow } from './db.ts';
+import { hashPassword, verifyPassword } from './password.ts';
 
 export const SESSION_COOKIE = 'arbiter_session';
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -13,7 +13,9 @@ const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
    is the only thing that needs it and it belongs to the auth vocabulary. */
 export { hashPassword, verifyPassword };
 
-export const normalizeUsername = (username: string) => username.trim().toLowerCase();
+/* The pure half of the auth vocabulary lives in its own leaf — the service
+   and the parser need it without the cookies this file owns. */
+export { normalizeUsername } from './username.ts';
 
 export type PublicUser = { id: number; username: string; rating: number; role: Role };
 
@@ -25,26 +27,18 @@ export const toPublicUser = (row: UserRow): PublicUser => ({
 });
 
 /**
- * Staff: the admin and the owner run every event, not just the ones they made.
- *
- * This is deliberately not a username check any more — the owner can promote
- * ordinary accounts to admin, and a promotion that did not change behaviour
- * would be a lie.
+ * Staff, for what staff still exists: a historical database can carry role rows
+ * that the retired consoles minted. A fresh deployment has none.
  */
 export function isAdmin(user: PublicUser | null): boolean {
   return user != null && (user.role === 'admin' || user.role === 'owner');
 }
 
-export function isOwner(user: PublicUser | null): boolean {
-  return user != null && user.role === 'owner';
-}
-
 /**
  * Who may decide a game they are not seated in.
  *
- * The owner runs the people, not the boards: suspending an event is how the
- * owner stops something, and it must never be possible to resign someone's game
- * from above. So this is the admin role only, plus the tournament's own host.
+ * Suspending an event is how an operator stops something gone wrong, and it
+ * must never be possible to resign someone's game from above.
  */
 export function canSettleGames(user: PublicUser | null): boolean {
   return user != null && user.role === 'admin';

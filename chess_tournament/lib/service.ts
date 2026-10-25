@@ -7,19 +7,27 @@ import {
   type ResultInput,
   type Standing,
   type StandingInput,
-} from './pairing';
-import { normalizeUsername } from './auth';
-import { db, now, parseMoves, slugify, type GameRow, type PairingRow, type PlayerRow, type TournamentRow } from './db';
-import { getTimeControl } from './time-controls';
+} from './pairing.ts';
+import { normalizeUsername } from './username.ts';
+import { ServiceError } from './service-error.ts';
+
+/** Re-exported: every caller already names `service` as the error's home. */
+export { ServiceError } from './service-error.ts';
+import {
+  db,
+  now,
+  parseFingerprint,
+  parseMoves,
+  slugify,
+  type GameRow,
+  type PairingRow,
+  type PlayerRow,
+  type TournamentRow,
+} from './db.ts';
+import { openingForMoves } from './openings.ts';
+import { getTimeControl } from './time-controls.ts';
 
 export const START_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
-
-export class ServiceError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ServiceError';
-  }
-}
 
 /* node:sqlite does not ship an interactive transaction helper, and the
    tournament writes below span several statements. */
@@ -53,6 +61,7 @@ export function listTournaments(limit = 50): (TournamentRow & { player_count: nu
                 WHERE p.tournament_id = t.id AND p.withdrawn = 0) AS player_count
        FROM tournaments t
        JOIN users u ON u.id = t.host_id
+       WHERE t.kind = 'event'
        ORDER BY t.created_at DESC
        LIMIT ?`,
     )
@@ -460,14 +469,23 @@ export function finishGame(
     const game = getGame(gameId);
     if (!game) throw new ServiceError('Game not found.');
 
+    /* A finished game carries its own opening label and identity: the label
+       comes from the move list against the ECO table, and the fingerprint —
+       over the two names and the line played — is what stops an import of this
+       same game from landing a second copy. */
+    const moves = parseMoves(movesJson ?? game.moves);
+    const opening = openingForMoves(moves.map((move) => move.san));
+    const fingerprint = fingerprintFor(game, moves.map((move) => move.san), result);
+
     db.prepare(
-      `UPDATE games SET status = 'finished', result = ?, termination = ?, updated_at = ?
+      `UPDATE games SET status = 'finished', result = ?, termination = ?, opening = ?,
+         fingerprint = ?, updated_at = ?
        ${movesJson ? ', moves = ?' : ''}
        WHERE id = ?`,
     ).run(
       ...(movesJson
-        ? [result, termination, now(), movesJson, gameId]
-        : [result, termination, now(), gameId]),
+        ? [result, termination, opening, fingerprint, now(), movesJson, gameId]
+        : [result, termination, opening, fingerprint, now(), gameId]),
     );
 
     if (game.tournament_id != null) {
@@ -476,6 +494,27 @@ export function finishGame(
       ).run(result, gameId);
     }
   });
+}
+
+/** The seats' names, resolved once — the fingerprint is over who played, not row ids. */
+function fingerprintFor(game: GameRow, sans: string[], result: string): string | null {
+  try {
+    const seats = db
+      .prepare(
+        'SELECT id, name FROM tournament_players WHERE id IN (?, ?)',
+      )
+      .all(game.white_player_id, game.black_player_id) as { id: number; name: string }[];
+
+    const white = seats.find((seat) => seat.id === game.white_player_id);
+    const black = seats.find((seat) => seat.id === game.black_player_id);
+    if (!white || !black) return null;
+
+    return parseFingerprint([white.name, black.name, sans.join(' '), result]);
+  } catch {
+    /* An unreadable seat pair simply leaves the copy undeduplicated — unique
+       only where the identity is provable. */
+    return null;
+  }
 }
 
 export function movesOf(game: GameRow) {

@@ -2,10 +2,28 @@ import { notFound } from 'next/navigation';
 
 import GameBoard, { type GameState } from '@/components/game-board';
 import { canSettleGames, getCurrentUser } from '@/lib/auth';
-import { START_FEN, getGameWithPlayers, getTournamentById, movesOf } from '@/lib/service';
+import { getGameWithPlayers, getTournamentById, movesOf } from '@/lib/service';
 import { getTimeControl } from '@/lib/time-controls';
 
 export const dynamic = 'force-dynamic';
+
+import Link from 'next/link';
+
+/** A finished game has an analysis page; the live board says so rather than
+    making the visitor hunt for it. */
+function FinishedGameNotice({ id }: { id: number }) {
+  return (
+    <p className="mb-4 border-2 border-info-fg bg-info-bg px-3 py-2 text-[13px] text-info-fg">
+      This game has finished.{' '}
+      <Link
+        href={`/games/${id}/analysis`}
+        className="font-bold underline underline-offset-2"
+      >
+        Open the full analysis →
+      </Link>
+    </p>
+  );
+}
 
 export default async function GamePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -22,13 +40,9 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
 
   const user = await getCurrentUser();
   const tournament = game.tournament_id ? getTournamentById(game.tournament_id) : null;
-  /* The admin settles any board, host or not. The owner may not — it manages
-     people, not games. */
-  const isHost = canSettleGames(user) || (user != null && tournament?.host_id === user.id);
-  /* Hosting is not playing. A host who is not one of the two account holders at
-     this board gets the host controls and nothing else — the position can only
-     be changed by the two people it belongs to. The lab is the exception: its
-     events are marked as sandboxes and an admin drives both seats there. */
+  /* Hosting is not playing: the position can only be changed by the two people
+     it belongs to. Sandbox events are the legacy exception — a retired lab left
+     boards with empty seats, and a staff account still drives both seats there. */
   const sandboxPlay = canSettleGames(user) && tournament?.sandbox === 1;
   const isSeated =
     sandboxPlay ||
@@ -42,7 +56,9 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
       result: game.result,
       termination: game.termination,
       timeControl: getTimeControl(game.time_control),
-      startFen: START_FEN,
+      /* Imported PGN may begin from a tagged position; played games use the
+         standard one the schema seeded. */
+      startFen: game.start_fen,
       drawOffer:
         game.draw_offer_by == null
           ? null
@@ -82,7 +98,9 @@ export default async function GamePage({ params }: { params: Promise<{ id: strin
         </p>
       ) : null}
 
-      <GameBoard initial={initial} canSettle={Boolean(isHost)} />
+      {game.status === 'finished' ? <FinishedGameNotice id={game.id} /> : null}
+
+      <GameBoard initial={initial} canSettle={false} />
     </div>
   );
 }

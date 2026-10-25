@@ -48,10 +48,17 @@ export default function GameReview({
   initialFen,
   moves,
   depth = 12,
+  /* Controlled navigation: an analysis page owns the board, so it also owns
+     which ply is on the screen. Left unset, the review navigates itself — the
+     behaviour the live board's aside relies on. */
+  selectedPly,
+  onSelectPly,
 }: {
   initialFen: string;
   moves: ReviewMove[];
   depth?: number;
+  selectedPly?: number;
+  onSelectPly?: (ply: number) => void;
 }) {
   const { ready, error, analyse, stop } = useEngine();
   const [reviews, setReviews] = useState<PlyReview[]>([]);
@@ -60,6 +67,11 @@ export default function GameReview({
   const [running, setRunning] = useState(false);
   /* Index into `positions`: 0 is the position before the first move. */
   const [selected, setSelected] = useState(0);
+
+  const controlled = selectedPly != null && onSelectPly != null;
+  const viewPly = controlled ? selectedPly : selected;
+  /** Moves the cursor: outward when owned by a page, inward when not. */
+  const seek = (ply: number) => (controlled ? onSelectPly(ply) : setSelected(ply));
 
   /* The position before each move, plus the final position. An engine score
      attaches to a position, so a move's cost is the difference between the
@@ -124,7 +136,7 @@ export default function GameReview({
 
   const white = forSide('w');
   const black = forSide('b');
-  const shownCp = scores[selected] ?? 0;
+  const shownCp = scores[viewPly] ?? 0;
 
   return (
     <section className="border-2 border-ink bg-surface shadow-brut">
@@ -175,15 +187,15 @@ export default function GameReview({
             </div>
           </div>
 
-          <EvalGraph reviews={reviews} selected={selected} onSelect={setSelected} />
+          <EvalGraph reviews={reviews} selected={viewPly} onSelect={seek} />
 
           <ol className="divide-y-2 divide-line">
             <li>
               <button
                 type="button"
-                onClick={() => setSelected(0)}
+                onClick={() => seek(0)}
                 className={`flex w-full items-center gap-3 px-5 py-2 text-left text-[12px] font-bold ${
-                  selected === 0 ? 'bg-bone' : 'hover:bg-bone'
+                  viewPly === 0 ? 'bg-bone' : 'hover:bg-bone'
                 }`}
               >
                 <span className="font-mono text-muted">0</span>
@@ -198,10 +210,10 @@ export default function GameReview({
               <li key={review.ply}>
                 <button
                   type="button"
-                  onClick={() => setSelected(index + 1)}
-                  className={`grid w-full grid-cols-[2.5rem_3.5rem_1fr_auto_auto] items-center gap-3 px-5 py-2.5 text-left ${
-                    selected === review.ply ? 'bg-bone' : 'hover:bg-bone'
-                  }`}
+                onClick={() => seek(index + 1)}
+                className={`grid w-full grid-cols-[2.5rem_3.5rem_1fr_auto_auto] items-center gap-3 px-5 py-2.5 text-left ${
+                  viewPly === review.ply ? 'bg-bone' : 'hover:bg-bone'
+                }`}
                 >
                   <span className="font-mono text-[11px] text-muted">
                     {Math.ceil(review.ply / 2)}

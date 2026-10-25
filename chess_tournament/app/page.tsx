@@ -6,12 +6,12 @@ import NotationMarquee from '@/components/notation-marquee';
 import { CATEGORY_LABEL, TIME_CONTROLS } from '@/lib/time-controls';
 
 /* Every board on this page is either the real app or a fact about it. There
-   are no sample players, no invented pairings and no illustrative score line:
+   are no sample players, no invented ratings and no illustrative score line:
    if a value here is not derived from `lib/` it does not belong on the page. */
-const PAIRING_RULES = [
-  { rule: 'No rematches', detail: 'The draw backtracks until no board is a repeat.' },
-  { rule: 'Byes to the bottom', detail: 'The lowest score without one sits out.' },
-  { rule: 'Colours balanced', detail: 'A third colour in a row is refused when it can be avoided.' },
+const RECORD_RULES = [
+  { rule: 'Legal, verified', detail: 'Every move is validated by chess.js on the server.' },
+  { rule: 'Named openings', detail: 'The ECO table labels what the moves actually reached.' },
+  { rule: 'Engine over each game', detail: 'Stockfish grades every ply once the game is over.' },
 ];
 
 const CATEGORIES = Array.from(new Set(TIME_CONTROLS.map((control) => control.category)));
@@ -39,30 +39,31 @@ export default function LandingPage() {
         <div className="relative grid lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]">
           <div className="relative px-5 py-12 sm:px-10 sm:py-14 lg:py-24 lg:pr-24">
             <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">
-              Swiss &amp; round robin
+              Profiles · history · analysis
             </p>
 
             <h1 className="mt-6 max-w-[15ch] text-[clamp(2.7rem,6.4vw,5rem)] leading-[0.94] font-extrabold tracking-[-0.045em] text-ink">
-              Host the tournament. We draw the rounds.
+              Your chess, on the record.
             </h1>
 
             <p className="mt-7 max-w-[42ch] text-[17px] leading-relaxed text-ink-soft">
-              Add your players, pick a time control, and start. Arbiter seeds every round,
-              runs the clocks on the server, and puts Stockfish over each finished game.
+              Play a challenged game or import a PGN, and Arbiter keeps the record: a profile with
+              your openings and results, a history you can filter, and Stockfish over every
+              finished game.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3 sm:gap-4">
               <Link
-                href="/tournaments/new"
+                href="/players"
                 className="press border-2 border-ink bg-accent px-6 py-3.5 text-[15px] font-bold text-on-accent shadow-brut"
               >
-                Host a tournament
+                Find a player
               </Link>
               <Link
-                href="/tournaments"
+                href="/import"
                 className="press border-2 border-ink bg-surface px-6 py-3.5 text-[15px] font-bold text-ink shadow-brut"
               >
-                Browse tournaments
+                Import a PGN
               </Link>
             </div>
 
@@ -90,10 +91,10 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl px-5 py-14 sm:px-6 sm:py-20">
           <div className="flex flex-wrap items-end justify-between gap-4 border-b-2 border-band-fg/25 pb-6">
             <h2 className="max-w-[26ch] text-[clamp(1.6rem,3.4vw,2.3rem)] font-extrabold tracking-[-0.035em] text-band-fg">
-              Pairings, clocks and review, run by the server.
+              Profiles, history and review, run by the record.
             </h2>
             <p className="font-mono text-[11px] tracking-[0.14em] text-band-fg/80 uppercase">
-              What Arbiter does per round
+              What Arbiter does per game
             </p>
           </div>
 
@@ -102,23 +103,23 @@ export default function LandingPage() {
               equal cards: the shapes carry the hierarchy, so the copy does not
               have to. */}
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-            {/* 1 — the pairing claim, widest cell */}
+            {/* 1 — the record claim, widest cell */}
             <article className="panel-on-ink flex flex-col justify-between gap-6 p-6 sm:p-7 sm:col-span-2 lg:col-span-3">
               <div>
                 <p className="font-mono text-[11px] tracking-[0.16em] text-band-fg/80 uppercase">
-                  01 — Pairings
+                  01 — The record
                 </p>
                 <h3 className="mt-3 text-[26px] font-extrabold tracking-[-0.03em] text-band-fg">
-                  Swiss, seeded by score.
+                  Every game, nameable and filterable.
                 </h3>
                 <p className="mt-3 max-w-[42ch] text-[14px] leading-relaxed text-band-fg/80">
-                  Players meet the nearest score they have not already played. No repeat
-                  pairings, no manual bracket.
+                  Result, colour, opening, move count and the clock that enforced it. Filter your
+                  history any way you played.
                 </p>
               </div>
 
               <ul className="flex flex-col gap-2.5">
-                {PAIRING_RULES.map((item) => (
+                {RECORD_RULES.map((item) => (
                   <li
                     key={item.rule}
                     className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-band-fg/35 pt-2.5"
@@ -174,14 +175,14 @@ export default function LandingPage() {
             {/* 3 */}
             <article className="panel-on-ink flex flex-col gap-3 p-6 sm:col-span-1 lg:col-span-2">
               <p className="font-mono text-[11px] tracking-[0.16em] text-band-fg/80 uppercase">
-                03 — Clocks
+                03 — Profiles
               </p>
               <h3 className="text-[19px] font-extrabold tracking-[-0.02em] text-band-fg">
-                Server time, not vibes.
+                Numbers that were earned.
               </h3>
               <p className="text-[13px] leading-relaxed text-band-fg/80">
-                Every move is timestamped and validated against the bank. A client that lies
-                about its clock loses on time.
+                Ratings are derived from results, game by game. No stat on a profile exists that
+                the record did not produce.
               </p>
             </article>
 
@@ -194,7 +195,7 @@ export default function LandingPage() {
                 Stockfish on every game.
               </h3>
               <p className="text-[13px] leading-relaxed text-band-fg/80">
-                Finish a game and the analysis is one click. Blunders are marked where they
+                Verdicts, accuracy and the eval graph, ply by ply. Blunders are marked where they
                 were played.
               </p>
             </article>
@@ -207,14 +208,14 @@ export default function LandingPage() {
                   05 — Your move
                 </p>
                 <h3 className="mt-2 text-[19px] font-extrabold tracking-[-0.02em] text-band-slab-ink">
-                  Start a bracket in a minute.
+                  Challenge someone to a board.
                 </h3>
               </div>
               <Link
-                href="/tournaments/new"
+                href="/players"
                 className="press inline-flex items-center justify-between gap-3 border-2 border-band-slab-ink bg-accent px-4 py-3 text-[13px] font-bold text-on-accent"
               >
-                Host a tournament
+                Open the players
                 <span aria-hidden="true">→</span>
               </Link>
             </article>
@@ -222,14 +223,14 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ How it works ═══════════════════════════════════════════
+      {/* ═══ How it works ══════════════════════════════════════════════════
           Three cards, hard borders, offset shadows — the neobrutalist half of
           the brief, kept to the part of the page that is pure instruction. */}
       <section className="bg-canvas">
         <div className="mx-auto max-w-6xl px-6 py-20">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <h2 className="max-w-[20ch] text-[clamp(1.7rem,3.4vw,2.6rem)] font-extrabold tracking-[-0.035em] text-ink">
-              Three steps, then the app does the work.
+              Three steps to a game worth keeping.
             </h2>
             <Link
               href="/analysis"
@@ -243,18 +244,18 @@ export default function LandingPage() {
             {[
               {
                 step: '01',
-                title: 'Name the tournament',
-                body: 'Pick a format, a round count and a time control. Nothing else is required.',
+                title: 'Sign in and challenge',
+                body: 'Pick a player from the directory, send a challenge, and they answer from their own profile.',
               },
               {
                 step: '02',
-                title: 'Paste your players',
-                body: 'One per line, in any order. They link to their accounts by username.',
+                title: 'Or import a PGN',
+                body: 'Paste a game or a file. Every move is validated; duplicates are skipped, not duplicated.',
               },
               {
                 step: '03',
-                title: 'Start round one',
-                body: 'Pairings generate instantly. Results feed the next round, and the standings.',
+                title: 'Open the analysis',
+                body: 'Step through the board, copy the FEN, export the PGN — and press Review for the engine\u2019s read.',
               },
             ].map((item) => (
               <li

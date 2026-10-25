@@ -1,15 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import TournamentControls from '@/components/tournament-controls';
-import { getCurrentUser, isAdmin } from '@/lib/auth';
-import {
-  getTournamentBySlug,
-  listPlayers,
-  roundView,
-  standingsFor,
-  unfinishedGames,
-} from '@/lib/service';
+import { getTournamentBySlug, listPlayers, roundView, standingsFor } from '@/lib/service';
 import { describeTimeControl, getTimeControl } from '@/lib/time-controls';
 
 export const dynamic = 'force-dynamic';
@@ -25,15 +17,13 @@ export default async function TournamentPage({ params }: { params: Promise<{ slu
   const tournament = getTournamentBySlug(slug);
   if (!tournament) notFound();
 
-  const user = await getCurrentUser();
-  /* The built-in admin runs every event, not just the ones it created. */
-  const isHost = isAdmin(user) || (user != null && user.id === tournament.host_id);
-
   const players = listPlayers(tournament.id);
   const active = new Set(players.filter((player) => player.withdrawn === 0).map((p) => p.id));
   const standings = standingsFor(tournament.id).filter((row) => active.has(row.playerId));
+  /* user_id points at the account the seat belongs to, so the field links into
+     the profiles; typed-in guests have no profile and stay plain names. */
+  const profileOf = new Map(players.filter((p) => p.user_id != null).map((p) => [p.id, p.name]));
   const control = getTimeControl(tournament.time_control);
-  const pending = unfinishedGames(tournament.id);
 
   const rounds = Array.from({ length: tournament.current_round }, (_, index) => index + 1);
 
@@ -95,7 +85,18 @@ export default async function TournamentPage({ params }: { params: Promise<{ slu
                     {standings.map((row) => (
                       <tr key={row.playerId} className="border-b-2 border-line last:border-0">
                         <td className="px-4 py-2.5 font-mono text-[12px] text-muted">{row.rank}</td>
-                        <td className="px-4 py-2.5 text-ink">{row.name}</td>
+                        <td className="px-4 py-2.5 text-ink">
+                          {profileOf.has(row.playerId) ? (
+                            <Link
+                              href={`/players/${encodeURIComponent(profileOf.get(row.playerId)!)}`}
+                              className="hover:underline"
+                            >
+                              {row.name}
+                            </Link>
+                          ) : (
+                            row.name
+                          )}
+                        </td>
                         <td className="px-4 py-2.5 text-right font-mono tabular-nums text-ink">
                           {row.score % 1 === 0 ? row.score : row.score.toFixed(1)}
                         </td>
@@ -167,17 +168,6 @@ export default async function TournamentPage({ params }: { params: Promise<{ slu
         </div>
 
         <aside className="space-y-6">
-          {isHost ? (
-            <TournamentControls
-            suspended={tournament.suspended === 1}
-              slug={tournament.slug}
-              status={tournament.status}
-              currentRound={tournament.current_round}
-              totalRounds={tournament.total_rounds}
-              pendingGames={pending}
-            />
-          ) : null}
-
           <section className="overflow-hidden rounded-none border-2 border-line bg-surface shadow-brut">
             <header className="border-b-2 border-line px-5 py-3">
               <h2 className="text-[13px] font-semibold text-ink">Field</h2>
@@ -189,7 +179,16 @@ export default async function TournamentPage({ params }: { params: Promise<{ slu
                   className="flex items-center justify-between px-5 py-2.5 text-[14px]"
                 >
                   <span className={player.withdrawn ? 'text-muted line-through' : 'text-ink'}>
-                    {player.name}
+                    {player.user_id ? (
+                      <Link
+                        href={`/players/${encodeURIComponent(player.name)}`}
+                        className="hover:underline"
+                      >
+                        {player.name}
+                      </Link>
+                    ) : (
+                      player.name
+                    )}
                   </span>
                   <span className="font-mono text-[12px] text-muted">{player.seed}</span>
                 </li>

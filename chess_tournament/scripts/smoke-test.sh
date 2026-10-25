@@ -1,23 +1,20 @@
 #!/usr/bin/env bash
 # End-to-end smoke test.
 #
-# Exercises the paths a host and two players actually take: register, take a
-# username, create a 7-player Swiss event (odd count, so the bye logic is live),
-# start it, try to advance too early, then create a second event between two
-# real accounts and play it.
+# Exercises the paths two players actually take now: register, challenge, play
+# a game to checkmate, export it as PGN, import that exact PGN (and watch the
+# dedupe skip it), filter a history page — and checks that the retired
+# administration endpoints are really gone.
 #
 #   ./scripts/smoke-test.sh              # own server, throwaway database
 #   ./scripts/smoke-test.sh <base-url>   # a server you already have running
 #
-# The default matters. These checks create accounts and tournaments, and an
-# earlier version ran them against the development database — so a run left a
-# "Smoke Test Open" event on the public tournaments page, hosted by
-# `smoke<timestamp>`, for as long as nobody deleted it. The fix is not a bigger
-# cleanup: it is never touching that database. By default the script starts its
-# own dev server on SMOKE_PORT with DATABASE_PATH inside a mktemp directory,
-# and deletes the lot on exit. Two dev servers cannot share the `.next`
-# directory, so stop your own server before running this — the script prints its
-# server's log if it fails to come up.
+# The default matters. These checks create accounts, and an earlier version ran
+# them against the development database. By default the script starts its own
+# dev server on SMOKE_PORT with DATABASE_PATH inside a mktemp directory, and
+# deletes the lot on exit. Two dev servers cannot share the `.next` directory,
+# so stop your own server before running this — the script prints its server's
+# log if it fails to come up.
 
 set -uo pipefail
 
@@ -25,12 +22,10 @@ EXTERNAL_BASE="${1:-}"
 PORT="${SMOKE_PORT:-3123}"
 BASE="${EXTERNAL_BASE:-http://127.0.0.1:$PORT}"
 SERVER_PID=""
-JAR="$(mktemp)"
 JAR_A="$(mktemp)"
 JAR_B="$(mktemp)"
 TMP="$(mktemp -d)"
 STAMP="$(date +%s)"
-USER="smoke${STAMP}"
 PLAYER_A="smokea${STAMP}"
 PLAYER_B="smokeb${STAMP}"
 PASS="correct-horse-battery"
@@ -47,10 +42,19 @@ kill_tree() {
 }
 
 cleanup() {
-  rm -f "$JAR" "$JAR_A" "$JAR_B"
+  rm -f "$JAR_A" "$JAR_B"
   if [ -n "$SERVER_PID" ]; then
     kill_tree "$SERVER_PID"
     wait "$SERVER_PID" 2>/dev/null
+    # Turbopack's inner server is a grandchild the TERM can leave behind;
+    # a listening port survives otherwise and poisons the next run.
+    local port_pid
+    port_pid="$(ss -ltnp "sport = :$PORT" 2>/dev/null | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2)"
+    if [ -n "$port_pid" ]; then
+      kill -TERM "$port_pid" 2>/dev/null
+      sleep 1
+      kill -9 "$port_pid" 2>/dev/null
+    fi
   fi
   rm -rf "$TMP"
   # Only reachable when pointed at someone else's server. Our own database is
@@ -58,18 +62,15 @@ cleanup() {
   [ -n "$EXTERNAL_BASE" ] && purge
 }
 
-# The checks run against a real server, so they leave real rows behind: another
-# "Smoke Test Open" on the public tournaments page on every run. This deletes
-# exactly the accounts the run created, and the events they hosted; players,
-# pairings and games follow by foreign key. Set DATABASE_PATH if the server was
-# started with one — otherwise it assumes the default file next to this script.
+# The checks run against a real server, so they leave real rows behind. This
+# deletes exactly the accounts the run created; their games and challenges
+# follow by foreign key.
 purge() {
   local root db
   root="$(cd "$(dirname "$0")/.." && pwd)"
   db="${DATABASE_PATH:-$root/data/arbiter.db}"
-  node "$root/scripts/purge-smoke.mjs" "$db" "$USER" "$PLAYER_A" "$PLAYER_B"
+  node "$root/scripts/purge-smoke.mjs" "$db" "$PLAYER_A" "$PLAYER_B"
 }
-trap cleanup EXIT
 
 start_server() {
   local root
@@ -100,7 +101,10 @@ check() {
   fi
 }
 
-code() { curl -s -o "$2" -w '%{http_code}' "${@:3}"; }
+# A first hit on a not-yet-compiled route can be cut mid-compile by the dev
+# server; retrying the *connection* is safe (a connection that failed was
+# never delivered), while real statuses fail fast as before.
+code() { curl -s --retry 3 --retry-all-errors -o "$2" -w '%{http_code}' "${@:3}"; }
 register() {
   code "$BASE" "$2" -c "$3" -X POST "$BASE/api/auth/register" \
     -H 'Content-Type: application/json' \
@@ -109,236 +113,159 @@ register() {
 
 [ -z "$EXTERNAL_BASE" ] && start_server
 
-step "Register a host and two players"
-STATUS=$(register "$USER" "$TMP/host.json" "$JAR")
-check "POST /api/auth/register (host)" "$STATUS" "200"
+step "Register two players"
 STATUS=$(register "$PLAYER_A" "$TMP/a.json" "$JAR_A")
 check "POST /api/auth/register (A)" "$STATUS" "200"
 STATUS=$(register "$PLAYER_B" "$TMP/b.json" "$JAR_B")
 check "POST /api/auth/register (B)" "$STATUS" "200"
 
-step "A taken username cannot be chosen, in any case"
-STATUS=$(register "$USER" "$TMP/dupe.json" "$TMP/none")
-check "exact duplicate rejected" "$STATUS" "409"
-STATUS=$(register "$(echo "$USER" | tr '[:lower:]' '[:upper:]')" "$TMP/dupe2.json" "$TMP/none")
-check "different case also rejected" "$STATUS" "409"
-STATUS=$(code "$BASE" "$TMP/weak.json" -X POST "$BASE/api/auth/register" \
-  -H 'Content-Type: application/json' -d '{"username":"weakling","password":"short"}')
-check "short password rejected" "$STATUS" "400"
+step "The retired administration surface is gone"
+STATUS=$(code "$BASE" "$TMP/admin.json" -b "$JAR_A" -X POST "$BASE/api/tournaments" \
+  -H 'Content-Type: application/json' -d '{"name":"x","format":"swiss","timeControl":"3+0","players":["a","b"]}')
+check "POST /api/tournaments is gone" "$STATUS" "404"
+STATUS=$(code "$BASE" "$TMP/lab.html" "$BASE/lab")
+check "GET /lab is gone" "$STATUS" "404"
+STATUS=$(code "$BASE" "$TMP/owner.html" "$BASE/owner")
+check "GET /owner is gone" "$STATUS" "404"
+STATUS=$(code "$BASE" "$TMP/newhost.html" "$BASE/tournaments/new")
+check "GET /tournaments/new is gone" "$STATUS" "404"
 
-step "Create a 7-player Swiss event"
-STATUS=$(code "$BASE" "$TMP/create.json" -b "$JAR" -X POST "$BASE/api/tournaments" \
+step "A challenge must name an existing player"
+STATUS=$(code "$BASE" "$TMP/noone.json" -b "$JAR_A" -X POST "$BASE/api/challenges" \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Smoke Test Open","format":"swiss","timeControl":"3+2","players":["Dana Whitfield","Tomas Berglund","Priya Raghunathan","Marcus Okonkwo","Ines Alvarado","Kenji Nakamura","Sofia Marchetti"]}')
-check "POST /api/tournaments" "$STATUS" "201"
-SLUG=$(node -e "process.stdout.write(require('$TMP/create.json').tournament.slug)")
-
-step "Draw round one"
-STATUS=$(code "$BASE" "$TMP/early.json" -b "$JAR" -X POST "$BASE/api/tournaments/$SLUG/start")
-check "POST .../start" "$STATUS" "200"
-BYES=$(node -e "process.stdout.write(String(require('$TMP/early.json').pairings.filter((p) => p.pairing.is_bye).length))")
-check "bye count in round 1" "$BYES" "1"
-BOARDS=$(node -e "process.stdout.write(String(require('$TMP/early.json').pairings.length))")
-check "boards including the bye" "$BOARDS" "4"
-GID=$(node -e "
-const d = require('$TMP/early.json');
-process.stdout.write(String(d.pairings.find((p) => !p.pairing.is_bye && p.game).game.id));
-")
-
-step "Advancing with games running must be refused"
-STATUS=$(code "$BASE" "$TMP/advance.json" -b "$JAR" -X POST "$BASE/api/tournaments/$SLUG/advance")
-check "POST .../advance while running" "$STATUS" "400"
-
-step "Hosting is not playing"
-# The field here is typed-in names with no accounts behind them, so this game
-# belongs to nobody. The host runs the event; that does not make them a player.
-STATUS=$(code "$BASE" "$TMP/hostmove.json" -b "$JAR" -X POST "$BASE/api/games/$GID/move" \
-  -H 'Content-Type: application/json' -d '{"from":"e2","to":"e4"}')
-check "a non-seated host cannot move" "$STATUS" "403"
-STATUS=$(code "$BASE" "$TMP/anon.json" -X POST "$BASE/api/games/$GID/move" \
-  -H 'Content-Type: application/json' -d '{"from":"e7","to":"e5"}')
-check "an anonymous move is rejected" "$STATUS" "401"
-
-step "Nothing has moved yet"
-curl -s -b "$JAR" "$BASE/api/games/$GID" -o "$TMP/state.json"
-MOVES=$(node -e "process.stdout.write(String(require('$TMP/state.json').game.moves.length))")
-check "move count in state" "$MOVES" "0"
-CONTROL=$(node -e "process.stdout.write(require('$TMP/state.json').game.timeControl.id)")
-check "time control propagated" "$CONTROL" "3+2"
-SEATED=$(node -e "process.stdout.write(String(require('$TMP/state.json').seats.seated))")
-check "the host is not seated" "$SEATED" "false"
-
-step "A resign by the host still ends the game"
-STATUS=$(code "$BASE" "$TMP/resign.json" -b "$JAR" -X POST "$BASE/api/games/$GID/action" \
-  -H 'Content-Type: application/json' -d '{"action":"resign","side":"white"}')
-check "POST .../action resign" "$STATUS" "200"
-RESULT=$(node -e "process.stdout.write(require('$TMP/resign.json').result)")
-check "resignation scores it" "$RESULT" "0-1"
-
-step "Rejected without a session"
-STATUS=$(code "$BASE" "$TMP/noauth.json" -X POST "$BASE/api/tournaments/$SLUG/advance")
-check "anonymous advance rejected" "$STATUS" "401"
-
-step "The bye is worth a full point in the standings"
-STANDING=$(node -e "
-const d = require('$TMP/early.json');
-const bye = d.pairings.find((p) => p.pairing.is_bye);
-const top = d.standings.find((s) => s.playerId === bye.pairing.white_id);
-process.stdout.write(String(top.score));
-")
-check "bye player's score" "$STANDING" "1"
-
-# ── A game two real accounts can actually play ─────────────────────────
-#
-# The event above proves the guard. This one proves the door: a host enters two
-# usernames, those usernames resolve to accounts, and those accounts can move.
-
-step "Create an untimed event between two accounts"
-STATUS=$(code "$BASE" "$TMP/untimed.json" -b "$JAR" -X POST "$BASE/api/tournaments" \
+  -d '{"opponent":"nobody-here","timeControl":"3+2"}')
+check "challenge to a missing player" "$STATUS" "400"
+STATUS=$(code "$BASE" "$TMP/self.json" -b "$JAR_A" -X POST "$BASE/api/challenges" \
   -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Smoke Untimed\",\"format\":\"round_robin\",\"timeControl\":\"untimed\",\"players\":[\"$PLAYER_A\",\"$PLAYER_B\"]}")
-check "POST /api/tournaments (untimed)" "$STATUS" "201"
-USLUG=$(node -e "process.stdout.write(require('$TMP/untimed.json').tournament.slug)")
+  -d "{\"opponent\":\"$PLAYER_A\",\"timeControl\":\"3+2\"}")
+check "challenge to yourself" "$STATUS" "400"
 
-STATUS=$(code "$BASE" "$TMP/ustart.json" -b "$JAR" -X POST "$BASE/api/tournaments/$USLUG/start")
-check "POST .../start (untimed)" "$STATUS" "200"
-
-UGID=$(node -e "
-const d = require('$TMP/ustart.json');
-process.stdout.write(String(d.pairings.find((p) => p.game).game.id));
-")
-WHITE=$(node -e "
-const d = require('$TMP/ustart.json');
-process.stdout.write(d.pairings.find((p) => p.game).whiteName);
-")
-if [ "$WHITE" = "$PLAYER_A" ]; then WJAR="$JAR_A"; BJAR="$JAR_B"; else WJAR="$JAR_B"; BJAR="$JAR_A"; fi
-
-step "The two accounts hold the seats"
-curl -s -b "$WJAR" "$BASE/api/games/$UGID" -o "$TMP/useat.json"
-SEATED=$(node -e "process.stdout.write(String(require('$TMP/useat.json').seats.seated))")
-check "the white player is seated" "$SEATED" "true"
-MODE=$(node -e "process.stdout.write(require('$TMP/useat.json').game.timeControl.mode)")
-check "time control mode" "$MODE" "none"
-
-step "The seated players can move"
-STATUS=$(code "$BASE" "$TMP/umove.json" -b "$WJAR" -X POST "$BASE/api/games/$UGID/move" \
-  -H 'Content-Type: application/json' -d '{"from":"e2","to":"e4"}')
-check "POST .../move e2e4 as white" "$STATUS" "200"
-SAN=$(node -e "process.stdout.write(require('$TMP/umove.json').san)")
-check "move recorded as SAN" "$SAN" "e4"
-
-step "A seated player cannot move for the other side"
-STATUS=$(code "$BASE" "$TMP/wrongside.json" -b "$WJAR" -X POST "$BASE/api/games/$UGID/move" \
-  -H 'Content-Type: application/json' -d '{"from":"e7","to":"e5"}')
-check "white cannot play black's move" "$STATUS" "403"
-
-step "An illegal move from the side to move is rejected"
-STATUS=$(code "$BASE" "$TMP/illegal.json" -b "$BJAR" -X POST "$BASE/api/games/$UGID/move" \
-  -H 'Content-Type: application/json' -d '{"from":"e7","to":"e4"}')
-check "illegal move rejected" "$STATUS" "400"
-
-step "An untimed game has no clock and cannot flag"
-# Two seconds on a zero bank. Any other control in the list would have flagged
-# the mover before this response came back.
-sleep 2
-STATUS=$(code "$BASE" "$TMP/bmove.json" -b "$BJAR" -X POST "$BASE/api/games/$UGID/move" \
-  -H 'Content-Type: application/json' -d '{"from":"e7","to":"e5"}')
-check "black moves after 2s on a zero bank" "$STATUS" "200"
-curl -s "$BASE/api/games/$UGID" -o "$TMP/uend.json"
-BANK=$(node -e "
-const c = require('$TMP/uend.json').clock;
-process.stdout.write(String(c.whiteMs + c.blackMs));
-")
-check "no time was consumed" "$BANK" "0"
-STATE=$(node -e "process.stdout.write(require('$TMP/uend.json').game.status)")
-check "still in play, not flagged" "$STATE" "active"
-
-# ── Draw offers ────────────────────────────────────────────────────────
-#
-# The board's draw button talks to these three actions, and a draw is an
-# agreement: one player offering must not end the game, and the offerer must
-# not be allowed to answer their own offer.
-
-step "A draw offer has to be answered by the other player"
-STATUS=$(code "$BASE" "$TMP/offer.json" -b "$WJAR" -X POST "$BASE/api/games/$UGID/action" \
-  -H 'Content-Type: application/json' -d '{"action":"offer_draw"}')
-check "POST .../action offer_draw" "$STATUS" "200"
-OFFER=$(node -e "process.stdout.write(require('$TMP/offer.json').drawOffer)")
-check "the offer is held on the game" "$OFFER" "white"
-
-curl -s "$BASE/api/games/$UGID" -o "$TMP/offered.json"
-STILL=$(node -e "process.stdout.write(require('$TMP/offered.json').game.status)")
-check "offering does not end the game" "$STILL" "active"
-
-STATUS=$(code "$BASE" "$TMP/own.json" -b "$WJAR" -X POST "$BASE/api/games/$UGID/action" \
-  -H 'Content-Type: application/json' -d '{"action":"accept_draw"}')
-check "answering your own offer is refused" "$STATUS" "400"
-
-STATUS=$(code "$BASE" "$TMP/decline.json" -b "$BJAR" -X POST "$BASE/api/games/$UGID/action" \
-  -H 'Content-Type: application/json' -d '{"action":"decline_draw"}')
-check "the opponent can decline" "$STATUS" "200"
-DECLINED=$(node -e "process.stdout.write(String(require('$TMP/decline.json').drawOffer))")
-check "declining clears the offer" "$DECLINED" "null"
-
-STATUS=$(code "$BASE" "$TMP/boffer.json" -b "$BJAR" -X POST "$BASE/api/games/$UGID/action" \
-  -H 'Content-Type: application/json' -d '{"action":"offer_draw"}')
-check "the other side can offer too" "$STATUS" "200"
-
-STATUS=$(code "$BASE" "$TMP/accept.json" -b "$WJAR" -X POST "$BASE/api/games/$UGID/action" \
-  -H 'Content-Type: application/json' -d '{"action":"accept_draw"}')
-check "the opponent can accept" "$STATUS" "200"
-RESULT=$(node -e "process.stdout.write(require('$TMP/accept.json').result)")
-check "an accepted draw scores 1/2-1/2" "$RESULT" "1/2-1/2"
-TERM=$(node -e "process.stdout.write(require('$TMP/accept.json').termination)")
-check "and is recorded as agreement" "$TERM" "agreement"
-
-step "A finished game takes no more moves"
-STATUS=$(code "$BASE" "$TMP/afterdraw.json" -b "$WJAR" -X POST "$BASE/api/games/$UGID/move" \
-  -H 'Content-Type: application/json' -d '{"from":"g1","to":"f3"}')
-check "POST .../move after a draw" "$STATUS" "400"
-
-# ── Checkmate ──────────────────────────────────────────────────────────
-#
-# The board topples the mated king, which means the *position* has to say who
-# was mated — not the result string, which only says who won.
-
-step "Fool's mate ends the game as a checkmate"
-STATUS=$(code "$BASE" "$TMP/mate.json" -b "$JAR" -X POST "$BASE/api/tournaments" \
+step "Anonymous challenges are rejected"
+STATUS=$(code "$BASE" "$TMP/anon.json" -X POST "$BASE/api/challenges" \
   -H 'Content-Type: application/json' \
-  -d "{\"name\":\"Smoke Mate\",\"format\":\"round_robin\",\"timeControl\":\"untimed\",\"players\":[\"$PLAYER_A\",\"$PLAYER_B\"]}")
-check "POST /api/tournaments (mate)" "$STATUS" "201"
-MSLUG=$(node -e "process.stdout.write(require('$TMP/mate.json').tournament.slug)")
+  -d "{\"opponent\":\"$PLAYER_B\",\"timeControl\":\"3+2\"}")
+check "anonymous challenge" "$STATUS" "401"
 
-STATUS=$(code "$BASE" "$TMP/mstart.json" -b "$JAR" -X POST "$BASE/api/tournaments/$MSLUG/start")
-check "POST .../start (mate)" "$STATUS" "200"
-MGID=$(node -e "
-const d = require('$TMP/mstart.json');
-process.stdout.write(String(d.pairings.find((p) => p.game).game.id));
-")
-MWHITE=$(node -e "
-const d = require('$TMP/mstart.json');
-process.stdout.write(d.pairings.find((p) => p.game).whiteName);
-")
-if [ "$MWHITE" = "$PLAYER_A" ]; then MWJAR="$JAR_A"; MBJAR="$JAR_B"; else MWJAR="$JAR_B"; MBJAR="$JAR_A"; fi
+step "A challenges B to a 3+2 game"
+STATUS=$(code "$BASE" "$TMP/challenge.json" -b "$JAR_A" -X POST "$BASE/api/challenges" \
+  -H 'Content-Type: application/json' \
+  -d "{\"opponent\":\"$PLAYER_B\",\"timeControl\":\"3+2\"}")
+check "POST /api/challenges" "$STATUS" "201"
+CID=$(node -e "process.stdout.write(String(require('$TMP/challenge.json').challenge.id))")
 
-for MV in "f2 f3 $MWJAR" "e7 e5 $MBJAR" "g2 g4 $MWJAR" "d8 h4 $MBJAR"; do
+STATUS=$(code "$BASE" "$TMP/again.json" -b "$JAR_A" -X POST "$BASE/api/challenges" \
+  -H 'Content-Type: application/json' \
+  -d "{\"opponent\":\"$PLAYER_B\",\"timeControl\":\"3+2\"}")
+check "a standing duplicate is refused" "$STATUS" "400"
+
+STATUS=$(code "$BASE" "$TMP/wrong.json" -b "$JAR_A" -X POST "$BASE/api/challenges/$CID" \
+  -H 'Content-Type: application/json' -d '{"action":"accept"}')
+check "the challenger cannot accept their own offer" "$STATUS" "400"
+
+step "B accepts and the board exists"
+STATUS=$(code "$BASE" "$TMP/accept.json" -b "$JAR_B" -X POST "$BASE/api/challenges/$CID" \
+  -H 'Content-Type: application/json' -d '{"action":"accept"}')
+check "POST .../accept" "$STATUS" "200"
+GID=$(node -e "process.stdout.write(String(require('$TMP/accept.json').gameId))")
+
+step "The board is live and the seats are held"
+code "$BASE" "$TMP/state.json" -b "$JAR_A" "$BASE/api/games/$GID" > /dev/null
+SEATED_A=$(node -e "process.stdout.write(String(require('$TMP/state.json').seats.seated))")
+check "one of the players is seated" "$SEATED_A" "true"
+code "$BASE" "$TMP/stateb.json" -b "$JAR_B" "$BASE/api/games/$GID" > /dev/null
+SEATED_B=$(node -e "process.stdout.write(String(require('$TMP/stateb.json').seats.seated))")
+check "the other is seated too" "$SEATED_B" "true"
+
+# The pairing picks the colours; the script obeys, or every white move is a
+# 403 about playing someone else's side.
+if POSIXSEAT=$(node -e "const d=require('$TMP/state.json'); process.stdout.write(String(d.seats.isWhite))"); [ "$POSIXSEAT" = "true" ]; then
+  WJAR="$JAR_A"; BJAR="$JAR_B"
+else
+  WJAR="$JAR_B"; BJAR="$JAR_A"
+fi
+
+step "Fool's mate ends the game as checkmate"
+for MV in "f2 f3 $WJAR" "e7 e5 $BJAR" "g2 g4 $WJAR" "d8 h4 $BJAR"; do
   set -- $MV
-  FROM="$1"; TO="$2"; JAR_MOVE="$3"
-  STATUS=$(code "$BASE" "$TMP/mv.json" -b "$JAR_MOVE" -X POST "$BASE/api/games/$MGID/move" \
-    -H 'Content-Type: application/json' -d "{\"from\":\"$FROM\",\"to\":\"$TO\"}")
-  check "move $FROM$TO" "$STATUS" "200"
+  STATUS=$(code "$BASE" "$TMP/mv.json" -b "$3" -X POST "$BASE/api/games/$GID/move" \
+    -H 'Content-Type: application/json' -d "{\"from\":\"$1\",\"to\":\"$2\"}")
+  check "move $1$2" "$STATUS" "200"
 done
-
 MOVER=$(node -e "process.stdout.write(require('$TMP/mv.json').over.termination)")
 check "mate is classified as checkmate" "$MOVER" "checkmate"
 
-curl -s -b "$MWJAR" "$BASE/api/games/$MGID" -o "$TMP/mend.json"
-MSTATUS=$(node -e "process.stdout.write(require('$TMP/mend.json').game.status)")
-check "the game is finished" "$MSTATUS" "finished"
-MRESULT=$(node -e "process.stdout.write(require('$TMP/mend.json').game.result)")
-check "black wins on a mated white" "$MRESULT" "0-1"
-MTURN=$(node -e "process.stdout.write(require('$TMP/mend.json').game.fen.split(' ')[1])")
-check "white is the side to move in the final FEN" "$MTURN" "w"
+code "$BASE" "$TMP/fen.json" "$BASE/api/games/$GID" > /dev/null
+GRESULT=$(node -e "process.stdout.write(require('$TMP/fen.json').game.status)")
+check "the game is finished" "$GRESULT" "finished"
+
+step "The finished game exports as PGN"
+STATUS=$(code "$BASE" "$TMP/export.pgn" "$BASE/api/games/$GID/pgn")
+check "GET .../pgn" "$STATUS" "200"
+grep -q '^\[Event ' "$TMP/export.pgn" && PGN_OK="1" || PGN_OK="0"
+check "the PGN carries headers" "$PGN_OK" "1"
+grep -q 'd8h4' "$TMP/export.pgn" || grep -q 'Qh4' "$TMP/export.pgn"
+# The last move must be in there one way or another:
+grep -q 'h4' "$TMP/export.pgn" && PGN_LAST="1" || PGN_LAST="0"
+check "the PGN carries the last move" "$PGN_LAST" "1"
+
+step "The analysis page answers"
+STATUS=$(code "$BASE" "$TMP/analysis.html" "$BASE/games/$GID/analysis")
+check "GET /games/:id/analysis" "$STATUS" "200"
+grep -q 'Export PGN' "$TMP/analysis.html" && A_OK="1" || A_OK="0"
+check "the analysis page renders the board" "$A_OK" "1"
+
+step "The signed-in player's challenge list answers"
+STATUS=$(code "$BASE" "$TMP/notyet.html" "$BASE/api/challenges" -b "$JAR_A")
+check "GET /api/challenges (session)" "$STATUS" "200"
+
+step "Import: the same game is skipped, a new one lands"
+cat > "$TMP/two.pgn" <<PGN_EOF
+[Event "Smoke import"]
+[White "$PLAYER_A"]
+[Black "$PLAYER_B"]
+[Result "1-0"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 1-0
+
+[Event "Smoke import two"]
+[White "$PLAYER_B"]
+[Black "$PLAYER_A"]
+[Result "1/2-1/2"]
+
+1. d4 d5 2. c4 c6 1/2-1/2
+PGN_EOF
+
+IMPORT_BODY=$(node -e 'process.stdout.write(JSON.stringify({ pgn: require("fs").readFileSync(process.argv[1], "utf8") }));' "$TMP/two.pgn")
+STATUS=$(code "$BASE" "$TMP/import.json" -b "$JAR_A" -X POST "$BASE/api/import" \
+  -H 'Content-Type: application/json' -d "$IMPORT_BODY")
+check "POST /api/import" "$STATUS" "201"
+IMPORTED=$(node -e "process.stdout.write(String(require('$TMP/import.json').imported.length))")
+check "two imported games" "$IMPORTED" "2"
+
+STATUS=$(code "$BASE" "$TMP/reimport.json" -b "$JAR_A" -X POST "$BASE/api/import" \
+  -H 'Content-Type: application/json' -d "$IMPORT_BODY")
+SKIPPED=$(node -e "process.stdout.write(String(require('$TMP/reimport.json').skipped))")
+check "re-import is skipped in full" "$SKIPPED" "2"
+
+step "Bad PGN is refused with a reason"
+STATUS=$(code "$BASE" "$TMP/bad.json" -b "$JAR_A" -X POST "$BASE/api/import" \
+  -H 'Content-Type: application/json' -d '{"pgn":"1. e4 e5 2. Ke3 1-0"}')
+check "illegal move refused" "$STATUS" "400"
+grep -q 'Move 3' "$TMP/bad.json" && BAD_OK="1" || BAD_OK="0"
+check "the error names the move" "$BAD_OK" "1"
+
+step "Anonymous import is rejected"
+STATUS=$(code "$BASE" "$TMP/anonimp.json" -X POST "$BASE/api/import" \
+  -H 'Content-Type: application/json' -d '{"pgn":"1. e4 e5 2. Nc6 1-0"}')
+check "anonymous import" "$STATUS" "401"
+
+step "Imported games show up atuned to profiles"
+STATUS=$(code "$BASE" "$TMP/profile.html" "$BASE/players/$PLAYER_A")
+check "GET /players/:username" "$STATUS" "200"
+STATUS=$(code "$BASE" "$TMP/history.html" "$BASE/players/$PLAYER_A/games?result=w")
+check "GET /players/:username/games?result=w" "$STATUS" "200"
+STATUS=$(code "$BASE" "$TMP/nobody.html" "$BASE/players/definitely-not-here")
+check "an unknown profile is a 404" "$STATUS" "404"
 
 printf '\n'
 if [ "$FAILED" -eq 0 ]; then

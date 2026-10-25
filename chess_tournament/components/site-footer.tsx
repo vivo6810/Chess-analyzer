@@ -4,15 +4,16 @@ const COLUMNS = [
   {
     title: 'Play',
     links: [
-      { label: 'Browse tournaments', href: '/tournaments' },
-      { label: 'Host a tournament', href: '/tournaments/new' },
-      { label: 'Leaderboard', href: '/leaderboard' },
+      { label: 'Challenge a player', href: '/' },
+      { label: 'Tournament records', href: '/tournaments' },
+      { label: 'Players', href: '/players' },
     ],
   },
   {
     title: 'Study',
     links: [
       { label: 'Analysis board', href: '/analysis' },
+      { label: 'Import a PGN', href: '/import' },
       { label: 'Sign in', href: '/login' },
     ],
   },
@@ -31,8 +32,8 @@ export default function SiteFooter() {
         <div>
           <p className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Arbiter</p>
           <p className="mt-3 max-w-[34ch] text-[13px] leading-relaxed text-muted">
-            Tournament software for people who would rather play than administrate. Pairings,
-            clocks and review in one place.
+            Your chess, on the record. Profiles, game history and Stockfish review over every
+            finished game.
           </p>
         </div>
 

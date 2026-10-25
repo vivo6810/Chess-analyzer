@@ -17,29 +17,22 @@ export default function TournamentsPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-16">
-      <header className="flex flex-wrap items-end justify-between gap-6">
-        <div className="max-w-2xl">
-          <h1 className="font-extrabold text-[36px] leading-[1.12] tracking-[-0.03em] text-ink">
-            Tournaments
-          </h1>
-          <p className="mt-3 text-[15px] text-muted">
-            Every event on this instance, newest first. Open one to see the standings, the draw,
-            and the games.
-          </p>
-        </div>
-        <Link
-          href="/tournaments/new"
-          className="press rounded-none bg-accent px-5 py-3 text-[14px] font-medium text-on-accent transition-colors hover:bg-accent/90"
-        >
-          Host a tournament
-        </Link>
+      <header className="max-w-2xl">
+        <h1 className="font-extrabold text-[36px] leading-[1.12] tracking-[-0.03em] text-ink">
+          Tournaments
+        </h1>
+        <p className="mt-3 text-[15px] text-muted">
+          Every event on this instance, newest first. Open one to see the standings, the draw,
+          and the games.
+        </p>
       </header>
 
       {tournaments.length === 0 ? (
         <div className="mt-12 rounded-none border-2 border-line bg-surface shadow-brut px-7 py-10">
           <p className="text-[15px] text-ink">Nothing here yet.</p>
           <p className="mt-1.5 text-[14px] text-muted">
-            Create the first tournament and the pairings will generate themselves.
+            Games come from challenges and imports, and they are filed under the players who
+            played them — see <span className="font-bold text-ink">Players</span>.
           </p>
         </div>
       ) : (

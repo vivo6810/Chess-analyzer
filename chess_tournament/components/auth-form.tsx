@@ -39,7 +39,7 @@ export default function AuthForm({
       return;
     }
 
-    router.push(next ?? '/tournaments/new');
+    router.push(next ?? '/');
     router.refresh();
   };
 
