@@ -266,11 +266,6 @@ export default function PlayPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-5 py-10 sm:px-6 sm:py-14">
-      <header className="mb-8">
-        <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">Play locally</p>
-        <h1 className="mt-3 text-[clamp(2.2rem,5vw,3.7rem)] leading-none font-extrabold tracking-[-0.045em] text-ink">Take on Stockfish.</h1>
-      </header>
-
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_17rem_18rem]">
         <section className="min-w-0 space-y-3">
           {status !== 'idle' ? <PlayerBoardRow

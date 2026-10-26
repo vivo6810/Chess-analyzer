@@ -275,3 +275,65 @@ a surface color.
 
 Verified: `npm test` 104/104, `npm run typecheck` clean, `npm run build`
 succeeds (all routes prerender/serve dynamically as before).
+
+## High-traffic performance layer (2026-10-26)
+
+Traffic-facing changes, all verified on the live routes:
+
+- **/api/chesscom is now edge-cacheable.** Success responses carry
+  `Cache-Control: public, max-age=300, s-maxage=300, stale-while-revalidate=172800`,
+  so a burst of visitors for one username pays a single archive walk instead
+  of one per request; visitors re-clicking a profile within 5 minutes reuse
+  their own copy. Every error response (400/404/502) is `no-store` so a
+  transient upstream failure never sticks in any cache layer.
+- **Month archives fetch with bounded concurrency (4)** instead of strictly
+  serial, roughly quartering the latency of `months`-window fetches and
+  `all` reports. `Promise.all` preserves archive order; over-fetch is
+  bounded to one batch and the payload is sorted + limited as before.
+- **Upstream calls have a 10 s timeout** (`AbortSignal.timeout`) so a hung
+  chess.com request cannot pin a serverless invocation, plus one fast
+  (500 ms) retry for 429/5xx and timeouts only — 4xx answers are never
+  retried, since each retry burns one rate-limit window.
+- **/engine/ assets have an explicit CDN policy**
+  (`public, max-age=14400, stale-while-revalidate=604800` in
+  `next.config.ts`): the ~1.8 MB worker+WASM pair stops re-pulling on cold
+  CDN nodes. Deliberately not `immutable` because the filename is not
+  versioned and the pair must update atomically.
+- The client engine and analytics remain zero-server-cost by design; no DB
+  and no other routes were touched.
+
+Verified live against the dev server: success payload carries the shared
+cache header; 404 and 400 responses carry `no-store`; the engine asset
+carries its CDN policy. `npm test` 104/104, `tsc --noEmit` clean, production
+build succeeds. Note: deployment can only confirm `s-maxage` behavior on
+Vercel's CDN itself, which local HTTP checks cannot observe.
+
+## Nav flight restoration (2026-10-26)
+
+The gooey pill flight was effectively invisible when switching pages:
+
+- **Root cause pair.** (1) The WebGL shader cannot follow CSS variables, so in
+  the header's adaptive mode the canvas painted the component's standalone
+  demo charcoal (`#27272a`) while the label ink followed the palette — the
+  dark-on-dark text the previous fix targeted, still present whenever the
+  stylesheet resolved late. (2) More importantly, `next dev` (Turbopack and
+  webpack alike) hard-navigates on link clicks in this sandbox — verified by
+  a window-marker probe that lost its marker and a `document`-type request
+  per click — so every dev click remounts the root layout and the nav
+  re-`settle()`s instantly. The production build navigates client-side and
+  the flight runs; a full reload can never show it.
+- **Fixes.** The adaptive pill is now resolved with a one-second
+  requestAnimationFrame retry (stylesheets can load after the first layout
+  effect), and the active-ink color is derived from the resolved pill and
+  set inline so pill and label are always a contrast pair; explicit
+  `color`/`activeTextColor` callers still win. The header passes
+  `animationTime 900`, `particleCount 22`, `spread 72`, `wobble 0.62` so the
+  flight reads for roughly a second instead of settling in ~150 ms.
+- **Preview setup.** The panel preview now serves `next build` + `next start`
+  on port 3000 rather than `next dev`, so what the user reviews includes the
+  true SPA navigation and flight. Keep dev-mode diagnostics away from
+  conclusions about animations: verify against a production server first.
+- Programmatic verification used a locally extracted chromium (system
+  libraries fetched without root); the tooling was removed after
+  verification. Frames captured before and after the fix are described in
+  this section only; no test automation remains in the repo.

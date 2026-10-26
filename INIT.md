@@ -262,6 +262,10 @@ npm run dev                  # dev server
   same-origin `new Worker('/engine/stockfish-19-lite-single.js')`.  The file
   you will find on disk is `lib/use-engine.ts` and it already does this
   correctly — study it, do not wrap it.
+- The asset pair carries an explicit CDN cache policy from `next.config.ts`
+  (`max-age=14400`, stale-while-revalidate). It is NOT `immutable` on purpose:
+  the filename is unversioned and the worker JS and WASM must update together —
+  if you ever version the filenames (best long-term fix), add `immutable`.
 
 ---
 
@@ -562,6 +566,15 @@ import { NextResponse } from 'next/server';
     show in the header of the analyzer).
 - Cache: `fetch(url, { headers, next: { revalidate: 300 } })` — modules may be
   revalidated; chess.com is strict about rate limits.
+- **High-traffic behavior (2026-10-26):** every upstream fetch carries a 10 s
+  `AbortSignal.timeout` plus one 500 ms retry restricted to 429/5xx/timeouts
+  (never for 404 or other 4xx — a retry only spends a rate-limit window).
+  Month archives fetch in batches of four (bounded `Promise.all`, order
+  preserved). Successful responses are edge-cacheable:
+  `public, max-age=300, s-maxage=300, stale-while-revalidate=172800` — errors
+  are always `no-store`. Keep this coupling if you touch the route: a silently
+  unpinned timeout or an uncached error simply recreates today's worst-peak
+  failure mode.
 - Errors map to JSX-friendly JSON payloads:
   - profile 404 → `NextResponse.json({ error: 'No profile named "<u>" on Chess.com.' }, { status: 404 })`
   - no games in window → 200 with empty list (the UI shows "no games in the
@@ -943,7 +956,17 @@ force-push.
 14. **Never store user data in the server filesystem.** There is no persistent
     filesystem on Vercel. `data/` writes were the old app's habit. Nothing
     writes to disk anymore — not even caches.
-15. **`useSearchParams`** needs `<Suspense>` in Next when used in a server
+15. **`next dev` hard-navigates on link clicks in this sandbox** (verified
+    2026-10-26 with both the Turbopack and webpack dev servers: a
+    `document`-type request per click, no RSC request). Client-side SPA
+    navigation and therefore the gooey pill flight only exist against a
+    production server — verify animations with `npm run build && npx next
+    start`, as the review preview does. Do not "fix" the nav component based
+    on what dev mode shows; it mounts a fresh root layout per click there.
+16. **Dev servers and `npm run build` share `.next`** — running a build while
+    a dev server is up clobbers the dev manifests and quietly breaks routing
+    until a `.next` wipe and restart. Stop the dev server before building.
+17. **`useSearchParams`** needs `<Suspense>` in Next when used in a server
     component; in our client page with `'use client'` the existing pattern in
     the app is safe. If you see a build error about Suspense, read Next docs
     — do not hack around it.

@@ -311,11 +311,56 @@ export default function GooeyNav({
   const listRef = useRef<HTMLUListElement | null>(null);
   const overlayRef = useRef<HTMLUListElement | null>(null);
   const fallbackRef = useRef<HTMLSpanElement | null>(null);
+  const navRef = useRef<HTMLElement | null>(null);
   const engineRef = useRef<{ go: (index: number) => void; refresh: () => void } | null>(null);
   const indexRef = useRef(current);
   indexRef.current = current;
 
-  const pillColor = color || PILL.color;
+  /* Adaptive mode means the stylesheet owns the pill brand — but the WebGL
+     shader cannot follow CSS custom properties, and the canvas would keep
+     painting this component's standalone-demo charcoal while the text
+     overlay follows the site tokens. Dark text on a dark pill; invisible.
+     So the resolved `--gn-pill` value is read from the stylesheet once,
+     before first paint, and fed straight to the shader.
+
+     The read can return empty when the stylesheet has not finished loading
+     (dev servers boot in that order), so a failed read retries per frame
+     for up to a second and then patches the live settings anyway — the
+     first resolved frame repaints, no state round-trip can race it.
+     Explicit `color` always wins. */
+  useIsomorphicLayoutEffect(() => {
+    if (!adaptive || color) return undefined;
+    const nav = navRef.current;
+    if (!nav) return undefined;
+    let until = performance.now() + 1000;
+    let frame = 0;
+    const resolve = () => {
+      const value = getComputedStyle(nav).getPropertyValue('--gn-pill').trim();
+      if (value) {
+        const rgb = parse(value);
+        settingsRef.current.pillRgb = rgb;
+        setAdaptivePill(value);
+        /* The label ink belongs to the same pair decision: when the
+           stylesheet owned the ink, canvas and tokens could disagree (this
+           is what bit under the dark-on-dark palette). Own both here so
+           pill and label always contrast, without overriding an explicit
+           caller choice. */
+        if (!activeTextColor) {
+          setAdaptiveInk(contrastInk(rgb));
+        }
+        return undefined;
+      }
+      if (performance.now() < until) frame = requestAnimationFrame(resolve);
+      return undefined;
+    };
+    resolve();
+    return () => cancelAnimationFrame(frame);
+  }, [adaptive, color, activeTextColor]);
+
+  const [adaptivePill, setAdaptivePill] = useState<string | null>(null);
+  const [adaptiveInk, setAdaptiveInk] = useState<string | null>(null);
+
+  const pillColor = color || adaptivePill || PILL.color;
   const pillRgb = parse(pillColor);
 
   const settingsRef = useRef({
@@ -966,6 +1011,7 @@ export default function GooeyNav({
 
   return (
     <nav
+      ref={navRef}
       aria-label={ariaLabel ?? 'Main'}
       className={`gooey-nav ${SIZES[size] ?? SIZES.md}${frame ? ' gooey-nav--framed' : ''}${adaptive ? ' gooey-nav--adaptive' : ''} ${className}`.trim()}
       style={
@@ -975,7 +1021,10 @@ export default function GooeyNav({
              a caller who hands over a `color` or `activeTextColor` still gets
              exactly what they asked for. */
           ...(adaptive && !color ? null : { '--gn-pill': pillColor }),
-          ...(adaptive && !activeTextColor ? null : { '--gn-active-ink': textColor }),
+          /* Once the stylesheet's pill has been resolved, the ink rides along
+             (paired above for contrast). Until then the adaptive stylesheet
+             value stands — that is the ordered-boot case. */
+          ...(adaptive && !activeTextColor ? (adaptiveInk ? { '--gn-active-ink': adaptiveInk } : null) : { '--gn-active-ink': textColor }),
           ...style,
         } as CSSProperties
       }

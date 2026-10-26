@@ -67,6 +67,14 @@ export default function SiteHeader() {
             items={NAV}
             size="sm"
             adaptive
+            /* The three-site hop is the app's signature transition; left at
+               the defaults the spring is settled before an eye assigns it a
+               reading. A longer flight and more droplets keep it legible
+               without resorting to theatrical timing. */
+            animationTime={900}
+            particleCount={22}
+            spread={72}
+            wobble={0.62}
             activeIndex={active}
             /* Navigation is the link's job. Pushing here as well navigated
                twice — once by the anchor, once by the router — and the second
