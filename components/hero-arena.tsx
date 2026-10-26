@@ -39,11 +39,11 @@ const MAX_PREMOVES = 5;
  */
 const HINT_DOT: CSSProperties = {
   backgroundImage:
-    'radial-gradient(circle at 50% 50%, #555 0 16%, #f4f0e7 17% 20%, transparent 21%)',
+    'radial-gradient(circle at 50% 50%, var(--color-canvas) 0 16%, var(--color-ink-soft) 17% 20%, transparent 21%)',
 };
 const HINT_RING: CSSProperties = {
   backgroundImage:
-    'radial-gradient(circle at 50% 50%, transparent 0 35%, #555 36% 47%, #f4f0e7 48% 52%, transparent 53%)',
+    'radial-gradient(circle at 50% 50%, transparent 0 35%, var(--color-canvas) 36% 47%, var(--color-ink-soft) 48% 52%, transparent 53%)',
 };
 
 /**
@@ -313,7 +313,7 @@ export default function HeroArena() {
           ? 'Click a green square to move.'
           : queue.length > 0
             ? 'Playing your premove…'
-            : 'Your move. Click a piece to see where it can go.'
+            : ''
         : queue.length > 0
           ? `${queue.length} premove${queue.length === 1 ? '' : 's'} queued — waiting for Stockfish.`
           : 'Stockfish to move.';

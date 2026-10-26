@@ -6,10 +6,15 @@ type ChessComPlayer = {
   avatar?: string;
   joined?: number;
   last_online?: number;
-  chess_bullet?: { last?: { rating?: number } };
-  chess_blitz?: { last?: { rating?: number } };
-  chess_rapid?: { last?: { rating?: number } };
-  chess_daily?: { last?: { rating?: number } };
+  chess_bullet?: ChessComRating;
+  chess_blitz?: ChessComRating;
+  chess_rapid?: ChessComRating;
+  chess_daily?: ChessComRating;
+};
+
+type ChessComRating = {
+  last?: { rating?: number };
+  best?: { rating?: number };
 };
 
 type ChessComStats = Pick<ChessComPlayer, 'chess_bullet' | 'chess_blitz' | 'chess_rapid' | 'chess_daily'>;
@@ -47,7 +52,14 @@ export async function GET(
   }
   const username = rawUsername.toLowerCase();
   const query = new URL(request.url).searchParams;
-  const limit = Math.max(1, Math.min(100, Number(query.get('limit')) || 60));
+  const requestedLimit = query.get('limit') ?? '60';
+  const allGames = requestedLimit.toLowerCase() === 'all';
+  const numericLimit = Number(requestedLimit);
+  if (!allGames && (!Number.isSafeInteger(numericLimit) || numericLimit < 1)) {
+    return NextResponse.json({ error: 'Choose a positive game count or "all".' }, { status: 400 });
+  }
+  const limit = allGames ? Number.POSITIVE_INFINITY : numericLimit;
+  const allMonths = query.get('months')?.toLowerCase() === 'all';
   const months = Math.max(1, Math.min(6, Number(query.get('months')) || 2));
 
   try {
@@ -70,8 +82,9 @@ export async function GET(
       return NextResponse.json({ error: 'Chess.com was unreachable just now.' }, { status: 502 });
     }
 
-    const archives = [...(archiveResult.data.archives ?? [])].reverse().slice(0, months);
-    const cutoff = Date.now() / 1000 - months * 31 * 24 * 60 * 60;
+    const allArchives = [...(archiveResult.data.archives ?? [])].reverse();
+    const archives = allMonths ? allArchives : allArchives.slice(0, months);
+    const cutoff = allMonths ? 0 : Date.now() / 1000 - months * 31 * 24 * 60 * 60;
     const games: Array<ChessComGame & { result: string }> = [];
     for (const archive of archives) {
       const result = await fetchJson<{ games?: ChessComGame[] }>(archive);
@@ -106,6 +119,12 @@ export async function GET(
           blitz: statsResult.data?.chess_blitz?.last?.rating ?? profileResult.data.chess_blitz?.last?.rating ?? null,
           rapid: statsResult.data?.chess_rapid?.last?.rating ?? profileResult.data.chess_rapid?.last?.rating ?? null,
           daily: statsResult.data?.chess_daily?.last?.rating ?? profileResult.data.chess_daily?.last?.rating ?? null,
+        },
+        bestRatings: {
+          bullet: statsResult.data?.chess_bullet?.best?.rating ?? profileResult.data.chess_bullet?.best?.rating ?? null,
+          blitz: statsResult.data?.chess_blitz?.best?.rating ?? profileResult.data.chess_blitz?.best?.rating ?? null,
+          rapid: statsResult.data?.chess_rapid?.best?.rating ?? profileResult.data.chess_rapid?.best?.rating ?? null,
+          daily: statsResult.data?.chess_daily?.best?.rating ?? profileResult.data.chess_daily?.best?.rating ?? null,
         },
       },
       games: games.slice(0, limit),

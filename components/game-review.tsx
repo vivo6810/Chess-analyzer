@@ -33,14 +33,14 @@ export const VERDICT_STYLE: Record<MoveVerdict, string> = {
   blunder: 'bg-loss-fg text-loss-bg',
 };
 const VERDICT_BAR_STYLE: Record<MoveVerdict, string> = {
-  forced: 'bg-[#181818]',
-  brilliant: 'bg-[#303030]',
-  best: 'bg-[#484848]',
-  excellent: 'bg-[#606060]',
-  good: 'bg-[#777777]',
-  inaccuracy: 'bg-[#8e8e8e]',
-  mistake: 'bg-[#a5a5a5]',
-  blunder: 'bg-[#bcbcbc]',
+  forced: 'bg-line-strong',
+  brilliant: 'bg-move-brilliant',
+  best: 'bg-move-best',
+  excellent: 'bg-move-best',
+  good: 'bg-move-critical',
+  inaccuracy: 'bg-move-inaccuracy',
+  mistake: 'bg-move-mistake',
+  blunder: 'bg-move-blunder',
 };
 
 const TURN = (fen: string): Side => (fen.split(' ')[1] === 'w' ? 'w' : 'b');

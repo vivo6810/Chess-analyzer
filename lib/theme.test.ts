@@ -16,7 +16,7 @@ const block = (pattern: RegExp, label: string) => {
   return match[1];
 };
 
-const lightBlock = block(/@theme static \{([\s\S]*?)\n\}/, 'light');
+const paletteBlock = block(/@theme static \{([\s\S]*?)\n\}/, 'site');
 
 /** All declared `--color-*` names, ignoring non-colour tokens like fonts. */
 const allKeys = (source: string) =>
@@ -31,7 +31,7 @@ const hexes = (source: string) => {
   return found;
 };
 
-const light = hexes(lightBlock);
+const palette = hexes(paletteBlock);
 
 /* ── WCAG relative luminance and contrast ─────────────────────── */
 
@@ -58,22 +58,27 @@ const AA = 4.5;
 const AAA = 7;
 
 const PALETTES = [
-  { name: 'site', tokens: light },
+  { name: 'site', tokens: palette },
 ] as const;
 
 /* ── Structure ────────────────────────────────────────────────── */
 
-test('the site uses one palette and has no dark-mode toggle', () => {
+test('the site uses the Tournament Club palette without a theme toggle', () => {
   const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
   const header = readFileSync(new URL('../components/site-header.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(css, /\[data-theme=['"]dark['"]\]/);
   assert.doesNotMatch(layout, /themeScript|data-theme/);
   assert.doesNotMatch(header, /ThemeToggle|Dark mode/);
+  assert.equal(palette['--color-canvas'], '#161512');
+  assert.equal(palette['--color-surface'], '#211f1c');
+  assert.equal(palette['--color-accent'], '#629924');
+  assert.equal(palette['--color-board-light'], '#d8d9c5');
+  assert.equal(palette['--color-board-dark'], '#4e6e58');
 });
 
 test('every declared colour is a plain six-digit hex', () => {
   for (const { name, tokens } of PALETTES) {
-    for (const key of allKeys(lightBlock)) {
+    for (const key of allKeys(paletteBlock)) {
       const value = tokens[key];
       assert.ok(value, `${name}: ${key} is not a hex colour (got ${value ?? 'nothing parseable'})`);
     }
@@ -82,7 +87,7 @@ test('every declared colour is a plain six-digit hex', () => {
 
 /* ── Contrast ─────────────────────────────────────────────────── */
 
-test('body copy clears AAA on the canvas', () => {
+test('ivory body copy clears AAA on the canvas', () => {
   for (const { name, tokens } of PALETTES) {
     assert.ok(
       contrast(tokens['--color-ink'], tokens['--color-canvas']) >= AAA,
@@ -173,10 +178,7 @@ test('the glass panels separate from the band behind them', () => {
   }
 });
 
-test('the band stays dark, and everything on it stays readable', () => {
-  /* The band is the one section that does not follow the palette: it is a
-     physical slab. These three pairs are the ones that would
-     silently invert if someone "fixed" it by reusing `solid` / `on-solid`. */
+test('the band and its inverted slab stay readable', () => {
   for (const { name, tokens } of PALETTES) {
     assert.ok(
       contrast(tokens['--color-band-fg'], tokens['--color-band']) >= AAA,
@@ -209,22 +211,22 @@ test('cards and borders separate from the surface they sit on', () => {
   }
 });
 
-test('the two square colours are far enough apart to read as a board', () => {
+test('the tournament-green squares are far enough apart to read as a board', () => {
   for (const { name, tokens } of PALETTES) {
     const ratio = contrast(tokens['--color-board-light'], tokens['--color-board-dark']);
     assert.ok(
       ratio >= 2,
-      `${name}: board squares are only ${round(ratio)}:1 apart, needs 2:1. Light squares at #efebe2 against #c3b9a8 were 1.57:1, which is why the board read as white-on-white.`,
+      `${name}: board squares are only ${round(ratio)}:1 apart, needs 2:1.`,
     );
   }
 });
 
-test('the board separates from the page behind it', () => {
+test('the board separates from the dark page behind it', () => {
   for (const { name, tokens } of PALETTES) {
     const ratio = contrast(tokens['--color-board-dark'], tokens['--color-canvas']);
     assert.ok(
       ratio >= 1.5,
-      `${name}: darkest square is ${round(ratio)}:1 against the canvas, needs 1.5:1. The hero heading is board colour clipped to letterforms, so this ratio is the headline's contrast.`,
+      `${name}: darkest square is ${round(ratio)}:1 against the canvas, needs 1.5:1.`,
     );
   }
 });

@@ -7,6 +7,7 @@ import { detectSacrifice, classifyMove, accuracyFromLoss, type MoveVerdict } fro
 import { parsePgn } from '@/lib/pgn';
 import { useEngine } from '@/lib/use-engine';
 import { listProfiles, rememberProfile, type ProfileEntry } from '@/lib/local-user';
+import { averageAccuracy, averageBlundersPerMatch, averageGameRating as meanGameRating } from '@/lib/profile-metrics';
 
 type RemoteGame = {
   end_time?: number;
@@ -16,7 +17,15 @@ type RemoteGame = {
   white?: { username?: string; rating?: number };
   black?: { username?: string; rating?: number };
 };
-type Payload = { error?: string; profile?: { username: string; name: string }; games?: RemoteGame[] };
+type Payload = {
+  error?: string;
+  profile?: {
+    username: string;
+    name: string;
+    bestRatings?: Record<string, number | null>;
+  };
+  games?: RemoteGame[];
+};
 type Summary = {
   verdicts: Record<MoveVerdict, number>;
   phases: Record<'w' | 'b', [number, number, number]>;
@@ -25,6 +34,9 @@ type Summary = {
   openings: Record<string, number>;
   outcomes: { wins: number; draws: number; losses: number };
   games: number;
+  playerBlunders: number;
+  playerAccuracyTotal: number;
+  playerAccuracyGames: number;
 };
 
 const emptySummary = (): Summary => ({
@@ -35,6 +47,9 @@ const emptySummary = (): Summary => ({
   openings: {},
   outcomes: { wins: 0, draws: 0, losses: 0 },
   games: 0,
+  playerBlunders: 0,
+  playerAccuracyTotal: 0,
+  playerAccuracyGames: 0,
 });
 const VERDICTS: MoveVerdict[] = ['blunder', 'mistake', 'inaccuracy', 'excellent', 'brilliant', 'best', 'good'];
 const VERDICT_NAMES: Record<MoveVerdict, string> = { forced: 'forced', brilliant: 'brilliant', best: 'best', excellent: 'excellent', good: 'good', inaccuracy: 'inaccuracy', mistake: 'mistake', blunder: 'blunder' };
@@ -44,6 +59,7 @@ const openingName = (opening: string) => opening.replace(/^[A-E]\d{1,2}\s*[-:·]
 export default function ProfilePage() {
   const { ready, error: engineError, analyse } = useEngine();
   const [username, setUsername] = useState('');
+  const [gameCount, setGameCount] = useState('100');
   const [payload, setPayload] = useState<Payload | null>(null);
   const [profiles, setProfiles] = useState<ProfileEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -59,12 +75,19 @@ export default function ProfilePage() {
   const fetchProfile = async (raw: string) => {
     const name = raw.trim();
     if (!name || loading || running) return;
+    const requestedGames = gameCount.trim().toLowerCase();
+    if (requestedGames !== 'all' && (!/^\d+$/.test(requestedGames) || Number(requestedGames) < 1)) {
+      setError('Enter a positive game count or “all”.');
+      return;
+    }
     setUsername(name);
     setLoading(true);
     setError(null);
     setSummary(null);
+    setPayload(null);
     try {
-      const response = await fetch(`/api/chesscom/${encodeURIComponent(name)}?limit=100&months=3`);
+      const query = new URLSearchParams({ limit: requestedGames, months: 'all' });
+      const response = await fetch(`/api/chesscom/${encodeURIComponent(name)}?${query}`);
       const body = await response.json() as Payload;
       if (!response.ok) throw new Error(body.error ?? 'Chess.com could not be reached.');
       setPayload(body);
@@ -80,7 +103,7 @@ export default function ProfilePage() {
   };
 
   const runReport = async () => {
-    const games = payload?.games?.filter((game) => game.pgn).slice(0, 20) ?? [];
+    const games = payload?.games?.filter((game) => game.pgn) ?? [];
     if (!games.length || !ready || running) return;
     setRunning(true);
     setError(null);
@@ -105,6 +128,7 @@ export default function ProfilePage() {
         const scores: number[] = [];
         const best: (string | null)[] = [];
         const gameLosses: number[] = [];
+        const playerLosses: number[] = [];
         for (const fen of positions) {
           const turn = fen.split(' ')[1] === 'w' ? 'w' : 'b';
           const score = await analyse(fen, 8);
@@ -125,13 +149,27 @@ export default function ProfilePage() {
             sacrifice: detectSacrifice(positions[index + 1], best[index + 1]),
           });
           report.verdicts[verdict] += 1;
+          if (mover === ownColor) {
+            playerLosses.push(loss);
+            if (verdict === 'blunder') report.playerBlunders += 1;
+          }
           const moveNumber = Math.ceil((index + 1) / 2);
           const phase = moveNumber <= 10 ? 0 : moveNumber <= 30 ? 1 : 2;
           if (verdict === 'blunder') report.phases[mover][phase] += 1;
-          gameLosses.push(loss);
-          (report.modeLosses[mode] ??= []).push(loss);
+          if (mover === ownColor) {
+            gameLosses.push(loss);
+            (report.modeLosses[mode] ??= []).push(loss);
+          }
         }
-        if (gameLosses.length) (report.losses[mode] ??= []).push(gameLosses.reduce((sum, loss) => sum + loss, 0) / gameLosses.length);
+        if (gameLosses.length) {
+          const averageLoss = gameLosses.reduce((sum, loss) => sum + loss, 0) / gameLosses.length;
+          (report.losses[mode] ??= []).push(averageLoss);
+        }
+        if (playerLosses.length) {
+          const averagePlayerLoss = playerLosses.reduce((sum, loss) => sum + loss, 0) / playerLosses.length;
+          report.playerAccuracyTotal += accuracyFromLoss(averagePlayerLoss, playerLosses.length);
+          report.playerAccuracyGames += 1;
+        }
       }
       setSummary(report);
     } catch (caught) {
@@ -145,7 +183,15 @@ export default function ProfilePage() {
     const isWhite = game.white?.username?.toLowerCase() === (payload.profile?.username ?? username).toLowerCase();
     return { mode: game.time_class ?? 'unknown', rating: isWhite ? game.white?.rating : game.black?.rating, date: game.end_time ?? 0 };
   }).filter((point): point is { mode: string; rating: number; date: number } => point.rating != null).reverse() ?? [];
-  const ratingModes = [...new Set(ratings.map((point) => point.mode))];
+  const averageRating = meanGameRating(ratings.map((point) => point.rating));
+  const bestRatings = payload?.profile?.bestRatings ?? {};
+  const meanAccuracy = summary
+    ? averageAccuracy(summary.playerAccuracyTotal, summary.playerAccuracyGames)
+    : null;
+  const ratingModes = [...new Set([
+    ...ratings.map((point) => point.mode),
+    ...Object.keys(bestRatings).filter((mode) => bestRatings[mode] != null),
+  ])];
 
   return (
     <div className="mx-auto max-w-6xl px-5 py-10 sm:px-6 sm:py-14">
@@ -155,9 +201,19 @@ export default function ProfilePage() {
         <p className="mt-4 text-[15px] leading-relaxed text-ink-soft">A browser-computed snapshot of recent games, rating history, openings, and move-level patterns.</p>
       </header>
 
-      <form onSubmit={(event) => { event.preventDefault(); void fetchProfile(username); }} className="flex flex-col gap-3 sm:flex-row">
+      <form onSubmit={(event) => { event.preventDefault(); void fetchProfile(username); }} className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <label htmlFor="profile-username" className="sr-only">Chess.com username</label>
         <input id="profile-username" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Chess.com username" className="field min-h-12 flex-1 px-4" />
+        <label htmlFor="profile-game-count" className="field-label">
+          Games
+          <input
+            id="profile-game-count"
+            value={gameCount}
+            onChange={(event) => setGameCount(event.target.value)}
+            placeholder="100 or all"
+            className="field mt-1 min-h-12 px-4 font-normal normal-case tracking-normal sm:w-36"
+          />
+        </label>
         <button disabled={loading || running} className="press min-h-12 border-2 border-ink bg-accent px-6 font-bold text-on-accent shadow-brut disabled:opacity-50">{loading ? 'Loading…' : 'Load profile'}</button>
       </form>
       {profiles.length ? <div className="mt-3 flex flex-wrap gap-2">{profiles.map((profile) => <button key={profile.username} type="button" onClick={() => { setUsername(profile.username); void fetchProfile(profile.username); }} className="badge bg-surface text-ink hover:bg-bone">{profile.name ?? profile.username}</button>)}</div> : null}
@@ -165,32 +221,64 @@ export default function ProfilePage() {
       {payload?.profile ? (
         <section className="mt-8 space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-ink pb-4">
-            <div><h2 className="text-2xl font-extrabold text-ink">{payload.profile.name}</h2><p className="text-[13px] text-muted">@{payload.profile.username} · {payload.games?.length ?? 0} recent games</p></div>
+            <div><h2 className="text-2xl font-extrabold text-ink">{payload.profile.name}</h2><p className="text-[13px] text-muted">@{payload.profile.username} · {payload.games?.length ?? 0} games</p></div>
             <button type="button" onClick={() => void runReport()} disabled={!ready || running || !payload.games?.length} className="press min-h-11 border-2 border-ink bg-accent px-5 font-bold text-on-accent shadow-brut disabled:opacity-40">{running ? `Analyzing ${progress}%` : engineError ? 'Engine unavailable' : 'Run move report'}</button>
           </div>
           {running ? <div className="h-3 border-2 border-ink bg-surface"><div className="h-full bg-accent transition-[width]" style={{ width: `${progress}%` }} /></div> : null}
+          <section className="grid gap-3 sm:grid-cols-3">
+            <div className="border-2 border-line bg-surface p-4">
+              <p className="text-[11px] font-bold text-muted uppercase">Average game rating</p>
+              <p className="mt-2 font-mono text-2xl tabular-nums text-ink">{averageRating ?? '—'}</p>
+            </div>
+            {summary ? (
+              <>
+                <div className="border-2 border-line bg-surface p-4">
+                  <p className="text-[11px] font-bold text-muted uppercase">Average blunders per match</p>
+                  <p className="mt-2 font-mono text-2xl tabular-nums text-ink">{averageBlundersPerMatch(summary.playerBlunders, summary.games)?.toFixed(1) ?? '—'}</p>
+                </div>
+                <div className="border-2 border-line bg-surface p-4">
+                  <p className="text-[11px] font-bold text-muted uppercase">Average accuracy</p>
+                  <p className="mt-2 font-mono text-2xl tabular-nums text-ink">
+                    {meanAccuracy == null ? '—' : `${meanAccuracy.toFixed(1)}%`}
+                  </p>
+                </div>
+              </>
+            ) : null}
+          </section>
           <section className="border-2 border-ink bg-surface p-4 shadow-brut">
             <h3 className="font-bold text-ink">Rating by mode</h3>
             {ratingModes.length ? (
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {ratingModes.map((mode) => {
                   const series = ratings.filter((point) => point.mode === mode);
-                  const minRating = Math.min(...series.map((point) => point.rating));
-                  const maxRating = Math.max(...series.map((point) => point.rating));
-                  const padding = Math.max(25, (maxRating - minRating) * 0.1);
-                  const lowerBound = minRating - padding;
-                  const ratingRange = maxRating - minRating + padding * 2;
-                  const yForRating = (rating: number) => 110 - ((rating - lowerBound) / ratingRange) * 100;
+                  const minRating = series.length ? Math.min(...series.map((point) => point.rating)) : null;
+                  const maxRating = series.length ? Math.max(...series.map((point) => point.rating)) : null;
+                  const padding = minRating != null && maxRating != null
+                    ? Math.max(25, (maxRating - minRating) * 0.1)
+                    : 0;
+                  const lowerBound = (minRating ?? 0) - padding;
+                  const ratingRange = (maxRating ?? 0) - (minRating ?? 0) + padding * 2;
+                  const yForRating = (rating: number) => 110 - ((rating - lowerBound) / Math.max(1, ratingRange)) * 100;
                   const points = series.map((point, index) => `${index / Math.max(1, series.length - 1) * 600},${yForRating(point.rating)}`).join(' ');
+                  const highestRating = bestRatings[mode] ?? maxRating;
                   return (
                     <div key={mode} className="border-2 border-line bg-surface p-3">
-                      <p className="text-[12px] font-bold text-ink">{mode}</p>
-                      <svg viewBox="0 0 600 120" className="mt-2 h-28 w-full" preserveAspectRatio="none" role="img" aria-label={`${mode} rating history`}>
-                        <line x1="0" y1="110" x2="600" y2="110" stroke="var(--color-line-strong)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-                        <polyline points={points} fill="none" stroke="var(--color-accent)" strokeWidth="3" vectorEffect="non-scaling-stroke" />
-                        {series.length === 1 ? <circle cx="300" cy={yForRating(series[0].rating)} r="5" fill="var(--color-accent)" /> : null}
-                      </svg>
-                      <p className="font-mono text-[10px] text-muted">{minRating}–{maxRating} · {series.length} games</p>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <p className="text-[12px] font-bold capitalize text-ink">{mode}</p>
+                        <p className="font-mono text-[10px] text-muted">
+                          Highest {highestRating ?? '—'}
+                        </p>
+                      </div>
+                      {series.length ? (
+                        <>
+                          <svg viewBox="0 0 600 120" className="mt-2 h-28 w-full" preserveAspectRatio="none" role="img" aria-label={`${mode} rating history`}>
+                            <line x1="0" y1="110" x2="600" y2="110" stroke="var(--color-line-strong)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+                            <polyline points={points} fill="none" stroke="var(--color-accent)" strokeWidth="3" vectorEffect="non-scaling-stroke" />
+                            {series.length === 1 ? <circle cx="300" cy={yForRating(series[0].rating)} r="5" fill="var(--color-accent)" /> : null}
+                          </svg>
+                          <p className="font-mono text-[10px] text-muted">{minRating}–{maxRating} · {series.length} games</p>
+                        </>
+                      ) : <p className="mt-3 text-[11px] text-muted">No games in this selection.</p>}
                     </div>
                   );
                 })}
@@ -229,7 +317,7 @@ export default function ProfilePage() {
               </section>
               <section className="border-2 border-ink bg-surface p-5 shadow-brut"><h3 className="font-bold text-ink">Win / draw / loss</h3><p className="mt-2 text-[13px] text-muted">{summary.outcomes.wins} wins · {summary.outcomes.draws} draws · {summary.outcomes.losses} losses · {summary.games} games</p></section>
             </>
-          ) : <p className="border-2 border-line bg-surface px-4 py-5 text-[13px] text-muted">{payload.games?.length ? 'Run the move report to calculate verdict and opening statistics for up to 20 games.' : 'No games in the requested recent window.'}</p>}
+          ) : null}
         </section>
       ) : null}
     </div>

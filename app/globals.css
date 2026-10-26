@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /* ────────────────────────────────────────────────────────────────
-   Arbiter — single-palette design system
+   Arbiter — Tournament Club palette
 
    A neobrutalist system, not a garnish. Three rules, and every
    surface in the app obeys them:
@@ -17,27 +17,9 @@
    a soft corner. `rounded-full` is deliberately not part of that
    scale and is only reachable by asking for it.
 
-   Colour is one scheme, not a collection of nice colours. Three roles,
-   in the proportions that make them legible:
-
-     1. **Scaffold — a warm monochrome.** Every surface and text value is
-        a tint or a shade of one warm hue (~38°, sand and umber). Tints
-        and shades of a single hue never clash, which is why a page can
-        carry six of them and still look composed. This is ~90% of the
-        area.
-     2. **Accent — one complementary hue (~214°, cobalt).** 38° and 214°
-        are opposite on the wheel, so the accent is the only colour on
-        the page that reads as *chosen* rather than neighbouring. It is
-        spent only on things you can act on: primary buttons, focus
-        rings, and the active nav pill. Thin, deliberate,
-        ~10% — a complement stops being an accent the moment it becomes
-        a surface.
-     3. **Status — green, red, amber.** Allowed to be loud because they
-        are never decorative: a green badge means "won" and appears
-        nowhere else, which is what makes it mean anything.
-
-   Numbers below are ratios against the surface they sit on, and
-   `lib/theme.test.ts` fails the build if any of them slip.
+   Warm charcoal surfaces, ivory text, tournament green actions, and a
+   muted green chessboard keep the interface familiar without glare.
+   `lib/theme.test.ts` checks the palette's text and surface contrast.
 
    `@theme static` rather than plain `@theme` because
    Tailwind tree-shakes theme variables it believes are unused, and it
@@ -56,86 +38,61 @@
   --radius-3xl: 0px;
   --radius-4xl: 0px;
 
-  /* Surfaces.
+  /* Warm charcoal surfaces and structural dividers. */
+  --color-canvas: #161512;
+  --color-bone: #2e2b27;
+  --color-surface: #211f1c;
+  --color-surface-sunken: #100f0d;
+  --color-line: #38342f;
+  --color-line-strong: #625d54;
 
-     The canvas is *sand*, not white. The previous pair (#faf8f4 canvas,
-     #ffffff card) measured 1.03:1 — a card on that page was white on white
-     with a 1.4:1 border, which is exactly what "I can't see the contrast"
-     meant. Dropping the canvas to a warm sand and keeping cards near-white
-     puts 1.29:1 between the paper and the card and lets the 2px ink border
-     and the offset shadow do the rest. */
-  --color-canvas: #e8e0d0;
-  --color-bone: #f2ecdf;
-  --color-surface: #fffdf7;
-  --color-surface-sunken: #ddd4c1;
+  /* Ivory foregrounds and readable warm-stone captions. */
+  --color-muted: #9e978e;
+  --color-ink-soft: #eae6df;
+  --color-ink: #eae6df;
+  --color-brut: #38342f;
 
-  /* Separation. On a neobrutalist page a border is structural, not a
-     suggestion: `line` now reads 1.9:1 against a card, and the heavy
-     borders are drawn in `ink` rather than in this. */
-  --color-line: #c2b69e;
-  --color-line-strong: #9b8e76;
+  /* Dark neutral controls and green primary actions. */
+  --color-solid: #2e2b27;
+  --color-on-solid: #eae6df;
+  --color-accent: #629924;
+  --color-on-accent: #161512;
 
-  /* Text. `muted` sits above 5:1 on the canvas — the old #787774 was
-     4.4:1, which passes only for large text and reads as grey mush for
-     the 12–13px captions it is actually used on. */
-  --color-muted: #57534b;
-  --color-ink-soft: #26221c;
-  --color-ink: #14120e;
+  /* The optional ink band stays distinct from the charcoal page. */
+  --color-band: #100f0d;
+  --color-band-fg: #eae6df;
+  --color-band-slab: #eae6df;
+  --color-band-slab-ink: #161512;
 
-  /* The offset shadow. It has to be visible against both the canvas and
-     a card, since it can land on either. */
-  --color-brut: #14120e;
+  /* Dark status surfaces with bright, legible semantic labels. */
+  --color-win-bg: #26331d;
+  --color-win-fg: #a8d66d;
+  --color-loss-bg: #3b2220;
+  --color-loss-fg: #ff9388;
+  --color-draw-bg: #382f1b;
+  --color-draw-fg: #efc66a;
+  --color-info-bg: #183039;
+  --color-info-fg: #7dd3fc;
 
-  /* Solid fills with their matching readable label color. */
-  --color-solid: #14120e;
-  --color-on-solid: #fbf8f2;
+  /* Tournament green board and amber move destinations. */
+  --color-board-light: #d8d9c5;
+  --color-board-dark: #4e6e58;
+  --color-move-hint: #d99b26;
 
-  /* The accent: sand sits near 38°, so its complement lands near 218°.
-     Actionable things only — see the scheme note at the top. */
-  --color-accent: #1d4ed8;
-  --color-on-accent: #fbf8f2;
+  /* Move-review semantics use the supplied Tournament Club colors. */
+  --color-move-brilliant: #26c6da;
+  --color-move-critical: #5c8bb0;
+  --color-move-best: #66bb6a;
+  --color-move-book: #a88865;
+  --color-move-inaccuracy: #fbc02d;
+  --color-move-mistake: #fb8c00;
+  --color-move-blunder: #e53935;
 
-  /* The band is a fixed near-black slab on the landing page. */
-  --color-band: #14120e;
-  --color-band-fg: #fbf7f1;
-  --color-band-slab: #fbf7f1;
-  --color-band-slab-ink: #14120e;
-
-  /* Status pastels — semantic, never decorative */
-  --color-win-bg: #eaf3e9;
-  --color-win-fg: #2f5c33;
-  --color-loss-bg: #fdeaea;
-  --color-loss-fg: #962c2a;
-  --color-draw-bg: #fbf2d8;
-  --color-draw-fg: #855800;
-  --color-info-bg: #e0f2fe;
-  --color-info-fg: #1b6291;
-
-  /* Board. The squares are the one place a real contrast ratio is
-     load-bearing twice over: they must separate from each other, and the
-     hero heading is nothing but board colour clipped to letterforms, so
-     a washed-out board is a washed-out headline. 2.7:1 apart. */
-  --color-board-light: #fbf4e6;
-  --color-board-dark: #8d7b5d;
-
-  /* Where a selected piece can go. Green, because a legal destination is
-     the one place on the board where "this is allowed" is worth saying in
-     colour — and it is drawn as a marker, never as a fill, so the squares
-     underneath keep the contrast the board test above measures. */
-  --color-move-hint: #127a3f;
-
-  /* Split-flap clock. A physical display bolted to the page, so it keeps
-     dark boards and bright digits instead of following the canvas. */
-  --color-flap-bg: #1b1815;
-  --color-flap-fg: #f9f5ee;
-  /* The side that is not on the move. Dimmer, but still ≥3:1 on the board:
-     a chess clock's digits are large text, and a clock you cannot read is
-     worse than no clock. */
-  --color-flap-idle: #8e857a;
-  /* Time pressure. Allowed to be chromatic because it is a signal, and it
-     has to be a *bright* red — `loss-fg` is tuned for a pastel background
-     and would be about 2:1 on a dark board. */
-  --color-flap-alert: #ff9a80;
+  /* Split-flap clock: an inset espresso display with warm ivory digits. */
+  --color-flap-bg: #2e2b27;
+  --color-flap-fg: #eae6df;
+  --color-flap-idle: #9e978e;
+  --color-flap-alert: #ff6b6b;
 
   /* Type. Two faces, not three: Geist carries interface and body copy,
      Geist Mono handles notation, numbers and clocks, where digit widths
@@ -155,7 +112,7 @@
   html {
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
-    color-scheme: light;
+    color-scheme: dark;
   }
 
   body {
@@ -503,11 +460,11 @@
   }
 
   .captured-piece--black {
-    background: #fbf7f1;
+    background: var(--color-board-light);
   }
 
   .captured-piece--white {
-    background: #171513;
+    background: var(--color-board-dark);
   }
 
   /* ── Split-flap game clock ───────────────────────────────────

@@ -210,9 +210,10 @@ list. The current UI and delivery status is recorded below.
   lists those games.
 - **Dedicated analysis page — implemented:** selecting a Chess.com recent
   game opens its own `/analysis/[id]` page with the selected replay and review.
-- **Single palette and analytics contrast — implemented:** removed the
-  site-wide theme toggle and alternate palette; analysis bars use distinct
-  grayscale tones.
+- **Tournament Club palette — implemented:** applied the warm charcoal and
+  ivory interface, tournament-green actions and board, amber move hints, and
+  semantic review colors; the site remains a single palette without a theme
+  toggle.
 - **Board player layout, clocks, and small-screen sizing — implemented:** the
   replay and play boards show names, captured pieces, a compact `+N` material
   lead only when positive, and side clocks. Empty-capture labels and zero
@@ -230,3 +231,20 @@ list. The current UI and delivery status is recorded below.
 - **Profile rating graphs and favorite openings — implemented:** separate
   rating graphs appear for modes in the recent game sample; opening names are
   bulleted and their ECO prefixes are removed.
+- **Profile report coverage — implemented (2026-10-26):** users can request a chosen game
+  count or all available Chess.com archives. Reports show average game rating,
+  each mode's highest Chess.com rating, average player accuracy, and average
+  player blunders per analyzed match.
+- **Screenshot copy cleanup — implemented (2026-10-26):** removed the promotional browser
+  tagline, the default move prompt, the footer blurb, and the old 20-game
+  report hint.
+- **Latest palette preference — documented (2026-10-26):** the user changed
+  the requested direction from Option C (Tournament Club, currently in code)
+  to Option B (Grandmaster Slate). Its full palette values and supplied board,
+  evaluation-bar, verdict-color, and badge/icon guidance are recorded in
+  `INIT.md`. This is a documentation update only; Option B has not yet been
+  applied to the application.
+- **Validation after these updates:** `npm test` (104 passing), `npm run
+  typecheck`, `npm run build`, and `git diff --check` all pass. The refreshed
+  `/profile` preview renders the game-count field and is available at
+  `http://127.0.0.1:3001`.

@@ -26,9 +26,6 @@ export default function SiteFooter() {
       <div className="mx-auto grid max-w-6xl gap-10 px-6 py-14 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)]">
         <div>
           <p className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Arbiter</p>
-          <p className="mt-3 max-w-[34ch] text-[13px] leading-relaxed text-muted">
-            No accounts, no servers — your games and your profiles live in your browser.
-          </p>
         </div>
 
         {COLUMNS.map((column) => (

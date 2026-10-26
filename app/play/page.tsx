@@ -20,12 +20,12 @@ type GameMove = PgnMove & { mover: 'w' | 'b' };
 type Status = 'idle' | 'playing' | 'finished';
 const PLAY_CONTROLS = ['1+0', '3+0', '3+2', '5+0', '5+3', '10+0', '10+5', '15+10', 'untimed'];
 const CONTROL_OPTIONS = PLAY_CONTROLS.map((id) => TIME_CONTROLS.find((control) => control.id === id)!).filter(Boolean);
-const DOT: CSSProperties = { backgroundImage: 'radial-gradient(circle at 50% 50%, #555 0 16%, #f4f0e7 17% 20%, transparent 21%)' };
-const RING: CSSProperties = { backgroundImage: 'radial-gradient(circle at 50% 50%, transparent 0 35%, #555 36% 47%, #f4f0e7 48% 52%, transparent 53%)' };
+const DOT: CSSProperties = { backgroundImage: 'radial-gradient(circle at 50% 50%, var(--color-canvas) 0 16%, var(--color-ink-soft) 17% 20%, transparent 21%)' };
+const RING: CSSProperties = { backgroundImage: 'radial-gradient(circle at 50% 50%, transparent 0 35%, var(--color-canvas) 36% 47%, var(--color-ink-soft) 48% 52%, transparent 53%)' };
 const CONFETTI = Array.from({ length: 32 }, (_, index) => ({
   left: `${(index * 37 + 11) % 100}%`,
   delay: `${(index % 9) * -0.17}s`,
-  color: ['#1d4ed8', '#2f5c33', '#855800', '#962c2a', '#14120e'][index % 5],
+  color: ['#629924', '#d99b26', '#eae6df', '#ff6b6b', '#a88865'][index % 5],
 }));
 
 function freshClock(control: TimeControl, now: number): ClockFields {

@@ -50,6 +50,103 @@ These decisions were made with the user and are **not yours to change**. When a
 requirement here conflicts with something you find in old code, this list wins —
 the old code that contradicts it is to be deleted (§8).
 
+### Conversation context and latest visual direction
+
+This record consolidates the user's requests across the conversation so future
+work preserves the full product and UX context instead of treating the latest
+message as a standalone change.
+
+**Current palette request (latest): Option B — Grandmaster Slate.** The site
+previously applied Option C (Tournament Club); that is what the current code
+still implements. The user has now asked that the handoff record be updated to
+say Option B is the desired palette. Record this as the next visual direction;
+do not claim Option B is already implemented until the CSS tokens and visible
+surfaces have actually been changed and verified.
+
+Option B values from the user's palette brief:
+
+| Role | Option B value |
+| --- | --- |
+| Main background | `#0B0F17` — Midnight Navy |
+| Panels / move list | `#151C28` — Dark Slate |
+| Hover / active row | `#1E293B` — Steel Blue-Gray |
+| Borders / dividers | `#283548` — Muted Slate Line |
+| Primary text | `#F8FAFC` — Ice White |
+| Secondary text | `#94A3B8` — Cool Gray |
+| Primary accent | `#38BDF8` — Electric Sky |
+| Secondary accent | `#818CF8` — Soft Indigo |
+
+The user also supplied two dark-mode board choices: a slate/ash board with
+light squares `#94A3B8` or `#B0B3B8`, dark squares `#334155` or `#47494D`, and
+a translucent gold last-move highlight; or the warmer tournament alternative
+with light `#D8D9C5` and dark `#4E6E58`. The pasted CSS example was explicitly
+Option A, so it is not the requested Option B implementation. Move-quality
+colors from the same brief are brilliant cyan `#26C6DA`, great/critical steel
+blue `#5C8BB0`, best emerald `#66BB6A`, book bronze `#A88865`, inaccuracy amber
+`#FBC02D`, mistake orange `#FB8C00`, and blunder crimson `#E53935`.
+Evaluation-bar colors requested were off-white `#E2E8F0` for White advantage
+and `#27272A` for Black advantage.
+
+The user-provided attachment also included conceptual round SVG icons and
+compact matte move-list badges for brilliant, great, best, book, inaccuracy,
+mistake, missed win, and blunder. The design notes requested dark cutout
+symbols, subtle color-tinted fills/borders, and optional board-corner badges.
+Treat these as reference/design guidance, not as a request to paste an
+unreviewed 319-line HTML/CSS/SVG demo into production. Reuse the existing move
+verdict UI and implement only the needed symbols/classes if separately asked.
+
+**Conversation request history and constraints**
+
+1. Use `INIT.md` as the primary product/data source, inspect the two requested
+   files and the repository, identify what remains, then implement the missing
+   website features.
+2. Test the site with a player other than Hikaru. Correct Magnus Carlsen's
+   world-number-one profile/rating handling and investigate a recent-games
+   cutoff that hid games played as late as October 23.
+3. Provide a live local preview for the user to test. Selecting a game for
+   analysis must open a dedicated page for only that game, not require
+   scrolling through unrelated analysis.
+4. The user wanted to report issues incrementally and asked to wait before
+   doing larger work; update `INIT.md` and `CHANGES.md` with reported issues.
+5. Improve contrast, particularly in the then-dark mode. Replace expanded
+   verdict details with compact counts and a “Show more” affordance; selecting
+   any move should seek the board to that position. Show a superscript quality
+   indicator on every board move.
+6. Replace “inexact” with “inaccuracy”. Add separate rating graphs by game
+   mode to profile analysis. Show favorite openings as bulleted names without
+   ECO prefixes such as “C4”.
+7. Put clocks on the board and use the user's supplied split-flap animation.
+   Arrange each player's name, captured pieces, positive material lead, and
+   clock alongside their side of the board. Make the board fit smaller screens.
+   Omit unnecessary instructional/capture text, including empty captures and
+   zero material leads. Material advantage should appear as `+N`, not a prose
+   label.
+8. Add click-to-select legal piece movement with destination markers that
+   respect chess rules such as pins. At game end, rotate the losing king
+   90 degrees to the right, show a red translucent ripple for a player loss,
+   and confetti for a player win.
+9. The user explicitly approved starting the board/clock and responsive work,
+   then asked for local preview and browser testing.
+10. The user next selected Option C, Tournament Club, from the supplied
+    palette options. Option C was implemented in the current code: warm
+    charcoal/ivory surfaces, tournament-green action and board colors, amber
+    move hints, and semantic verdict colors. The latest message changes the
+    desired direction to Option B; the earlier selection must not override it.
+11. Remove the exact screenshot copy: the landing tagline “No account ·
+    everything in your browser”, the footer blurb about no accounts/servers
+    and browser storage, the hero-board “Your move. Click a piece to see where
+    it can go.” prompt, and the profile hint describing the old 20-game limit.
+12. Add profile analytics for average game rating, average blunders per match,
+    highest rating for every game mode, and average accuracy. Let the user
+    choose a game count or enter `all` to analyze available Chess.com games.
+13. Keep the user informed with a local preview and verify changes rather than
+    claiming a preview is current when it serves an old build.
+
+Current implementation state is summarized in §3 and the follow-up ledger in
+§14. This context ledger captures the conversation's user requirements and
+attached palette/badge direction without copying the full raw conversation or
+unreviewed demo markup into this operational handoff file.
+
 **What the app is.** A free chess analysis site. No accounts, no sign-in, no
 server database, no backend storage of any kind. User-specific data lives in
 **cookies** on the user's browser. The server statelessly proxies
@@ -76,14 +173,14 @@ visuals from the old design's gooey nav beyond the existing component's look:
    **approximate time-per-move summary at the bottom**, and the full analytics
    set: white/black accuracy, game ratings when provided (not inferred from
    accuracy), verdict tally bar.
-3. **`/profile` — Profile analysis.** Enter a Chess.com username → over their
-   recent games (the same proxy), the app runs a lighter **aggregate report**:
-   counts per verdict (blunders, mistakes, brilliants, etc.), separate
+3. **`/profile` — Profile analysis.** Enter a Chess.com username and choose a
+   game count or `all`. The app runs an aggregate report over the selected
+   games: average game rating, Chess.com peak rating for each game mode,
+   average accuracy and blunders per match, counts per verdict, separate
    **Elo-style rating graphs for each game mode the player has played**
    (bullet/blitz/rapid/daily from Chess.com), win/draw/loss rate, favorite
    openings shown as a bulleted list of opening names without ECO codes such as
-   "C4", most-blundered
-   phase, average centipawn loss trend. One entry = one profile; the report is
+   "C4", most-blundered phase, and average centipawn loss trend. The report is
    client-computed from fetched PGNs. Profiles looked at are remembered in
    cookies.
 
@@ -93,7 +190,7 @@ Delete the middle ink band (bento cards 01–05) and the bottom "How it works"
 step cards section, completely.
 
 **Cookie storage (final).** All "user data" = cookies, no `localStorage` for
-this (theme stays in `localStorage` as-is):
+this. The interface uses one dark Tournament Club palette with no theme toggle:
 - `arbiter:profiles` — JSON array of `{ username: string; name?: string; ts: number }`, 8 max.
 - `arbiter:analyses` — JSON array of `{ id: string; source: 'chesscom'|'pgn'|'play'; white: string; black: string; result: string; played?: string; profile?: string; stored: boolean; ts: number }`, 12 max, newest first, deduped by `id`.
 - `arbiter:g:<id>` — the compact PGN text of one analyzed game so it can be reopened from history. **One cookie per game, each under 3,500 bytes** (cookie budget); do not store if longer.
@@ -126,10 +223,10 @@ sacrifice detection; replay, verdict, eval, and clock analytics. The
 account/database/tournament/challenge routes and their backing modules have
 been removed. `CHANGES.md` records this rewrite.
 
-Validation at the current handoff: `npm test` passes 103 tests,
-`npm run typecheck` passes, and `npm run build` succeeds. Browser smoke checks
-returned 200 for `/`, `/play`, `/analysis`, `/profile`, the Chess.com proxy,
-and the Stockfish worker asset.
+Validation at the current handoff: `npm test` passes 104 tests,
+`npm run typecheck` passes, and `npm run build` succeeds. The latest browser
+check confirmed the profile game-count field renders at `/profile`; the
+production preview is available at `http://127.0.0.1:3001`.
 
 ---
 
@@ -187,7 +284,9 @@ reviewer (and the user) reads diffs against them.
    `app/globals.css` (`bg-canvas`, `text-ink`, `border-line`, `bg-surface`,
    `bg-accent`, `text-on-accent`, `bg-bone`, `shadow-brut`, `badge`,
    `press`, `field`, `field-label`, `board-shell`). Use them; do not invent
-   one-off colors. The app uses a single light palette with no theme toggle.
+   one-off colors. The app uses one dark Tournament Club palette with no theme
+   toggle: warm charcoal surfaces, ivory text, tournament-green actions, and a
+   muted green board with amber move hints.
 6. **Accessibility is not negotiable:** buttons have labels, interactive cards
    are `<button>`, dialogs have `role="dialog"` + label, keyboard flows
    (arrow-key stepping exists in `game-replay.tsx` — keep it).
@@ -612,37 +711,20 @@ One `'use client'` file. Two tabs at the top (buttons, `aria-selected`):
 
 One `'use client'` file. Enter (or select from cookie) a Chess.com username →
 
-1. Fetch `/api/chesscom/${username}?limit=100&months=3` (reuse route, bigger
-   cap; if empty, message). rememberProfile.
-2. **Per-mode rating graphs**: from `profile.chess_*` last + best values is
-   insufficient — Chess.com pub API has ratings-over-time at
-   `/pub/player/{u}/ratings?wall=...`? It does NOT — the public endpoint that
-   exists is `/pub/player/{u}` (static) and per-month games (which carry
-   `white.rating` per game — the actual per-game rating). Build the Elo
-   graph **from the games themselves**: x = date, y = the user's rating in
-   that game (they may be white or black — pick the seat matching the
-   username, case-insensitive). Render a separate graph for each `time_class`
-   the player has played; omit modes without games. SVG like §7.10 eval graph.
-3. **Aggregate verdict report**: for performance, run a **light engine pass**:
-   depth 8 instead of 12, and a **cap of ~20 games per click** with a visible
-   progress bar (reuse the review's progress logic). Use `useEngine` once for
-   everything (queue positions sequentially — same promise pattern). Verdict
-   counting via `classifyMove` (+`detectSacrifice`).
-4. Output cards: blunder/mistake/inaccuracy/excellent/brilliant counts (and,
-   from §7.10 helpers, per-mode accuracy averages). "Most mistakes happen by
-   move 15" is NOT required — keep phase cut simple: early (≤10), middle
-   (11–30), late (31+): show a tiny 3-bucket bar per side.
-   Openings aggregation: from `openings.ts`, count opening names per game;
-   show the top 5 as a bulleted list without ECO-code prefixes.
-5. Profile history (cookie list) is rendered as chips — click = re-run.
+1. Let the user request a positive game count or `all`; fetch newest archives
+   until the count is reached, or every archive has been read. Remember the
+   profile after a successful fetch.
+2. Draw a separate per-mode rating graph from game ratings and show each
+   mode's all-time peak from Chess.com's stats endpoint.
+3. The move report analyzes every returned PGN at depth 8 using one engine
+   worker and a visible progress bar. It reports average game rating, average
+   player blunders per match, mean per-game estimated accuracy, verdicts,
+   openings, W/D/L, and blunder phases.
+4. Openings aggregation shows the top 5 as a bulleted list without ECO-code
+   prefixes. Profile history (cookie list) is rendered as chips; click = re-run.
 
-This page is the heaviest computation in the app. It must:
-- disable re-run while running;
-- show a progress bar;
-- abort engine work if the user navigates away (cancel via the existing
-  `analyses` abort patterns — check `useEngine` cleanup: it terminates the
-  worker on unmount, so un-mounting is safe);
-- cap total time (e.g. max 20 games × ~60 plies × depth 8 in browser ≈ fine).
+The move report can be lengthy for large or `all` requests; it must disable
+re-run while running and show progress.
 
 ### 7.14 Landing, header, footer, layout — implemented
 
@@ -658,7 +740,7 @@ player's games, and Arbiter reviews every move: brilliant through blunder,
 accuracy, the clock they kept, and a graph of the engine's eye."
 CTA 1 → href="/play", label "Play the engine"
 CTA 2 → href="/analysis", label "Analyze a game"
-foot-line → "No account · everything in your browser"
+Remove the promotional foot-line below the CTAs.
 ```
 
 **`components/site-header.tsx`**: NAV becomes exactly:
@@ -673,8 +755,7 @@ Remove the `AccountChip` import + usage. Keep the mobile menu and scrim.
 
 **`components/site-footer.tsx`**: columns →
 `Play: [{Play the engine, /play}]`, `Study: [{Analyze a game, /analysis},
-{Profile report, /profile}]`. Copy: "No accounts, no servers — your games and
-your profiles live in your browser."
+{Profile report, /profile}]`. Do not add a descriptive footer blurb.
 
 **`app/layout.tsx`**: metadata →
 `title: 'Arbiter — play the engine, analyze any game'`,
@@ -861,15 +942,14 @@ force-push.
 
 ## 14. User follow-ups and future work
 
-User-reported follow-ups (2026-10-25; implemented after the user authorized
-the fixes):
+User-reported follow-ups (implemented after the user authorized the fixes):
 
 1. **Dedicated game analysis page — implemented**: selecting a Chess.com
    recent game opens its own `/analysis/[id]` page with that game's replay
    and analysis only.
-2. **Single palette and analytics contrast — implemented**: the dark-mode
-   toggle and alternate palette are removed. Verdict bars use differentiated
-   grayscale tones and the clock graph identifies both player series.
+2. **Tournament Club palette — implemented**: the site uses warm charcoal
+   surfaces, ivory text, green actions, a muted tournament-green board, and
+   semantic move-review colors. There is no theme toggle.
 3. **Recent Chess.com games cutoff — implemented**:
    recent games were omitted because the proxy applied its limit before
    selecting newest archive entries. The route now traverses monthly archive
@@ -895,6 +975,25 @@ the fixes):
    use chess.js legal-move rules. On a win, confetti celebrates over the board.
    On a loss, the losing king falls right and a translucent red ripple crosses
    the board. Reduced-motion preferences disable the moving overlays.
+9. **Tournament Club palette — implemented, superseded by a newer palette
+   request**: warm charcoal surfaces, ivory text, tournament-green actions and
+   board, amber legal-move hints, and semantic review colors remain in the
+   current CSS. The user has since requested Option B (Grandmaster Slate) as
+   the desired palette; implementing that visual switch is still pending.
+10. **Profile report metrics and range — implemented (2026-10-26)**: the
+    profile page accepts a positive game count or `all`, loads newest Chess.com
+    archives until that count is met, and reports average game rating, each
+    mode's Chess.com peak, average player blunders per analyzed game, and
+    average per-game accuracy estimate. The report analyzes all PGNs in the
+    selected sample.
+11. **Visible-copy cleanup — implemented (2026-10-26)**: removed the landing
+    page browser tagline, the footer account/storage blurb, the hero board's
+    default move prompt, and the obsolete profile hint about a 20-game cap.
+12. **Option B palette direction — documented (2026-10-26)**: the user changed
+    the desired palette from the previously selected Option C to Option B,
+    Grandmaster Slate. Values and the supplied board/verdict/evaluation
+    guidance are recorded in §1. Do not mark the palette switch implemented
+    until the app is updated and validated.
 
 Previously listed ideas:
 

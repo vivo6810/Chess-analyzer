@@ -34,9 +34,6 @@ export default function LandingPage() {
                 Analyze a game
               </Link>
             </div>
-            <p className="mt-6 font-mono text-[11px] tracking-[0.1em] text-muted uppercase">
-              No account · everything in your browser
-            </p>
           </div>
           <div className="relative border-t-2 border-ink px-5 py-10 sm:px-10 sm:py-12 lg:border-t-0 lg:border-l-2 lg:py-16 lg:pr-8 lg:pl-12">
             <HeroArena />
