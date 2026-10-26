@@ -5,40 +5,40 @@ how to code, but this codebase has rules, traps and a frozen product spec. This
 file teaches you all of them. If you violate a rule written here, the previous
 agent's work (all of it, committed or not) will fight you and you will lose.
 
-**Rule zero:** make changes in `chess_tournament/` only. Never touch sibling
-directories, never rewrite history, never force-push. Everything in this file is
-in the user's language: English.
+**Rule zero:** the repository root is the application root. Make changes here;
+do not recreate a `chess_tournament/` wrapper. Never rewrite history or
+force-push. Everything in this file is in the user's language: English.
 
 ---
 
 ## Table of contents
 
 1. The product, frozen
-2. The two repos and how syncing works (read twice)
-3. State at handoff — what is done, what is half-done
+2. Repository and deployment
+3. Implementation status
 4. Environment and commands
 5. How code is written in this repo (style law)
 6. Architecture map — what survives, what dies, what is new
 7. Module-by-module build instructions
    - 7.1 `lib/pgn.ts` (done — read to understand)
    - 7.2 `lib/game.ts` (done)
-   - 7.3 Verdicts + brilliant detection (`lib/review.ts`)
-   - 7.4 Engine levels (`lib/engine-levels.ts` — to write)
+   - 7.3 Verdicts + brilliant detection (`lib/review.ts` — implemented)
+   - 7.4 Engine levels (`lib/engine-levels.ts` — implemented)
    - 7.5 The engine worker (`lib/use-engine.ts` — exists, do not break)
    - 7.6 Clock (`lib/clock.ts` — exists, keep and test)
-   - 7.7 Cookie storage (`lib/local-user.ts` — to write)
-   - 7.8 Chess.com proxy (`app/api/chesscom/[username]/route.ts` — to write)
+   - 7.7 Cookie storage (`lib/local-user.ts` — implemented)
+   - 7.8 Chess.com proxy (`app/api/chesscom/[username]/route.ts` — implemented)
    - 7.9 `components/game-replay.tsx` (exists; small edits)
    - 7.10 `components/game-review.tsx` (exists; extend carefully)
-   - 7.11 `/play` page (to write)
-   - 7.12 `/analysis` page (to write)
-   - 7.13 `/profile` page (to write)
-   - 7.14 Landing, header, footer, layout (edits specified)
+   - 7.11 `/play` page (implemented)
+   - 7.12 `/analysis` page (implemented)
+   - 7.13 `/profile` page (implemented)
+   - 7.14 Landing, header, footer, layout (implemented)
 8. Deletion checklist (exact paths)
 9. Config edits (exact)
 10. Docs and scripts to update
 11. Verification pipeline
-12. Commit + GitHub push procedure (exact commands)
+12. Commit and publish
 13. Trap list — every way a careless agent breaks this app
 14. Future work pool
 
@@ -69,17 +69,20 @@ visuals from the old design's gooey nav beyond the existing component's look:
    - or **paste/upload a PGN**.
    The analysis shows: player ratings of the game (from Chess.com metadata when
    available), verdict per move — **excellent, brilliant, best, good,
-   inaccuracy (shown as "inexact"), mistake, blunder** where **brilliant is
+   inaccuracy, mistake, blunder** where **brilliant is
    reserved for sacrifices** (recipe in §7.3) — a large **eval bar** next to
    the board, a **per-move eval graph (line, zero line = equal)**, the
    **clock remaining time per move** rendered with the move list, an
    **approximate time-per-move summary at the bottom**, and the full analytics
-   set: white/black accuracy, estimated strength, verdict tally bar.
+   set: white/black accuracy, game ratings when provided (not inferred from
+   accuracy), verdict tally bar.
 3. **`/profile` — Profile analysis.** Enter a Chess.com username → over their
    recent games (the same proxy), the app runs a lighter **aggregate report**:
-   counts per verdict (blunders, mistakes, brilliants, etc.), an **Elo-style
-   rating graph over time per mode** (bullet/blitz/rapid/daily from
-   Chess.com), win/draw/loss rate, favorite openings (ECO names), most-blundered
+   counts per verdict (blunders, mistakes, brilliants, etc.), separate
+   **Elo-style rating graphs for each game mode the player has played**
+   (bullet/blitz/rapid/daily from Chess.com), win/draw/loss rate, favorite
+   openings shown as a bulleted list of opening names without ECO codes such as
+   "C4", most-blundered
    phase, average centipawn loss trend. One entry = one profile; the report is
    client-computed from fetched PGNs. Profiles looked at are remembered in
    cookies.
@@ -104,111 +107,40 @@ Do not resurrect the `chess_tournament/` wrapper on GitHub. Do not add back
 
 ---
 
-## 2. The two repos and how syncing works (read twice)
+## 2. Repository and deployment
 
-There are **two** GitHub repos:
-
-- **`vivo6810/chess_tournament`** — the user's public project repo. Its `main`
-  lags behind (it has never received the newer commits; pushing there needs
-  credentials only the user can give).
-- **`vivo6810/Chess-analyzer`** — the **connected** repo. Vercel imports it.
-  Its `main` has the full mirrored history and, crucially, the **app files at
-  the repo ROOT** (the nesting was flattened by design for Vercel).
-
-In this workspace, the app lives in `chess_tournament/` — a **nested git
-repository with its own history**. Commits you make happen **in the nested
-repo**. But "publishing" means: creating mirror commits that carry the nested
-history into Chess-analyzer, **with the nested tree placed at the root of the
-outer repo's tree** (not under `chess_tournament/`).
-
-The outer workspace repo is a managed checkpoint repo (`/workspace/repo.git`)
-whose worktree only holds a gitlink to the nested repo. Its HEAD branch is
-`freebuff/01465cccf9af6a702553f360`.
-
-**The push procedure (exact; a "dumb" mistake here breaks everything):**
-Never call `git checkout <branch>` in the live workspace. Never touch the
-nested repo's remote. Only the platform's `cloud_git` tool can authenticate to
-GitHub, and it pushes **the worktree's current HEAD**. So:
-
-```bash
-cd /workspace/chats/<YOUR_CHAT_ID>          # the app worktree root
-set -e
-# 1. pull nested history (objects) into the outer repo:
-git fetch --no-tags chess_tournament/.git main:refs/nested/mirror
-# 2. build the flat-tree commit on top of the remote's current main:
-start=$(git rev-parse FETCH_HEAD)           # current Chess-analyzer main
-tree=$(git rev-parse refs/nested/mirror^{tree})
-#    commit-tree with the NESTED tree as the ENTIRE root tree (flat layout)
-commit=$(printf '%s' "<commit message>" | \
-  GIT_AUTHOR_NAME="serverformc" GIT_AUTHOR_EMAIL=<author email from nested log> \
-  GIT_COMMITTER_NAME="serverformc" GIT_COMMITTER_EMAIL=<committer email from nested log> \
-  git commit-tree "$tree" -p "$start")
-git update-ref refs/heads/mirror-sync "$commit"
-git symbolic-ref HEAD refs/heads/mirror-sync   # point the worktree HEAD there (no checkout!)
-# 3. push, then RESTORE:
-#    (then run the platform push tool: push HEAD -> branch "main")
-# 4. restore:
-git symbolic-ref HEAD refs/heads/freebuff/<YOUR_CHAT_ID>
-git fetch    # verify; log --oneline FETCH_HEAD -3; ls-tree FETCH_HEAD (must show package.json at root)
-```
-
-If you cannot stand where you are (4. vs instructions), STOP and re-read. The
-`symbolic-ref` dance points HEAD at the mirror ref without rewriting the
-working tree, because the mirror tree ≠ worktree contents (worktree holds the
-gitlink; the mirror tree holds plain files). A real checkout would shred files.
+The connected repository is `vivo6810/Chess-analyzer`, and its root is the
+Next.js application root. Vercel imports this repository directly. There is no
+nested application repository, mirror-sync procedure, or `chess_tournament/`
+directory in this checkout. Do not commit or publish changes unless the user
+asks; never force-push.
 
 ---
 
-## 3. State at handoff — what is done, what is half-done
+## 3. Implementation status
 
-**Done and committed** (before this file): app overhaul to a platform with
-auth + DB (login, tournaments, challenges, profiles, leaderboard, site players,
-import pipeline, driver-agnostic `lib/db.ts` with `node:sqlite`/libsql
-drivers). **Most of that is now due for deletion** per §8 — it served a product
-the user abandoned.
+The cookie-only product described in §1 is implemented at the repository root:
+the `/play`, `/analysis`, and `/profile` pages; local cookie history; the
+Chess.com proxy; engine levels and clock-aware play; PGN handoff; brilliant
+sacrifice detection; replay, verdict, eval, and clock analytics. The
+account/database/tournament/challenge routes and their backing modules have
+been removed. `CHANGES.md` records this rewrite.
 
-**Done locally, NOT yet committed at handoff** (the "new code" being committed
-with this very INIT file):
-
-- `lib/pgn.ts` + `lib/pgn.test.ts` — **the new DB-free PGN parser**, complete
-  and consistent. It ports the old validated parser (which once wrote to the
-  DB) but produces plain `ParsedGame` objects and **also captures `[%clk]`
-  comments into `move.clk` seconds** (Chess.com archives always carry them).
-  `splitPgn`, `parsePgn`, `parseOneGame`, `PgnError` are the API. This file is
-  finished; do not redesign it, extend it only for `renderPgn` (§7.1).
-- `lib/game.ts` — slimmed to the three pure functions the analysis UI needs:
-  `evaluatePosition` (board endings), `legalMoveCount` (used by the review for
-  `forced` moves), `buildPgn` (export). Clocks and live-move application were
-  cut. Its test file was rewritten to match.
-- Pending review tests: the old `game.test.ts` had verdict tests that belong in
-  `lib/review.test.ts` — create that file when you touch `review.ts` (§7.3).
-
-**Verification state at handoff.** After `npm ci`, the surviving suites are
-**green — 92/92**: `pgn.test.ts` (11), `game.test.ts` (7), `openings.test.ts`
-(7), `chess-ui.test.ts` (23), `time-controls.test.ts` (8), `theme.test.ts`
-(19), plus the review module's own assertions currently living inside the
-old suites. The ONLY red allowance is `lib/import-pgn.test.ts`, which stays
-red on purpose until its files are deleted (§8) — do not "fix" it.
-
-**Know the trap:** `npm run typecheck` currently FAILS on files scheduled for
-deletion (old `service.ts` imports `applyMove` from the slimmed `game.ts`).
-Delete first (§8), then verify. Do not re-add clocks to `game.ts`.
-
-**Environment note:** `node_modules` may be missing after any workspace
-restore (install again with `npm ci`). The failing pattern
-`Cannot find package 'chess.js'` always means the environment, never the code.
+Validation at the current handoff: `npm test` passes 103 tests,
+`npm run typecheck` passes, and `npm run build` succeeds. Browser smoke checks
+returned 200 for `/`, `/play`, `/analysis`, `/profile`, the Chess.com proxy,
+and the Stockfish worker asset.
 
 ---
 
 ## 4. Environment and commands
 
 ```bash
-cd chess_tournament          # where everything happens
-npm install                  # if node_modules is missing (check first!)
+npm ci                       # if node_modules is missing
 npm run typecheck            # tsc --noEmit, must be CLEAN before any commit
 npm test                     # node --test, must be ALL GREEN before any commit
-npm run build                # production build, before pushing to GitHub
-npm run dev                  # dev server (preview runs on port 3000)
+npm run build                # Next production build
+npm run dev                  # dev server
 ```
 
 - Node requirement `>=22.13`. Tests run under Node's built-in TS stripping —
@@ -255,8 +187,7 @@ reviewer (and the user) reads diffs against them.
    `app/globals.css` (`bg-canvas`, `text-ink`, `border-line`, `bg-surface`,
    `bg-accent`, `text-on-accent`, `bg-bone`, `shadow-brut`, `badge`,
    `press`, `field`, `field-label`, `board-shell`). Use them; do not invent
-   one-off colors. Dark/light themes come from `[data-theme]` — the theme
-   script in `app/layout.tsx` sets it pre-paint (do not break that).
+   one-off colors. The app uses a single light palette with no theme toggle.
 6. **Accessibility is not negotiable:** buttons have labels, interactive cards
    are `<button>`, dialogs have `role="dialog"` + label, keyboard flows
    (arrow-key stepping exists in `game-replay.tsx` — keep it).
@@ -269,7 +200,7 @@ reviewer (and the user) reads diffs against them.
    remaining.
 10. **Hydration discipline:** anything reading cookies/localStorage renders a
     skeleton/empty shell during SSR and fills after a `useEffect` +
-    `setState`. This theme-via-`localStorage` app already set that pattern.
+    `setState`.
 
 ---
 
@@ -278,8 +209,8 @@ reviewer (and the user) reads diffs against them.
 **Survive as-is (do not edit unless a spec below says so):**
 `lib/openings.ts`(+`.test.ts`) — ECO table by move sequence; `lib/chess-ui.ts`
 (+test) — square/target helpers; `lib/review.ts` — verdict thresholds (you'll
-extend it); `lib/use-engine.ts` — worker client; `lib/use-theme.ts`; theme
-`components/theme-toggle.tsx`; `components/gooey-nav/GooeyNav.tsx` (header );
+extend it); `lib/use-engine.ts` — worker client;
+`components/gooey-nav/GooeyNav.tsx` (header);
 `components/engine-panel.tsx` (fen-driven, depth 12); decorative folders
 (`fold-text`, `split-flap-text`, `variable-proximity`, `notation-marquee`,
 `hero-arena` — used by landing hero); `components/site-footer.tsx` (rewrite
@@ -287,7 +218,7 @@ columns, trivial); `app/globals.css` (only add, don't purge yet).
 
 **Survive with edits:** `components/game-replay.tsx` (§7.9),
 `components/game-review.tsx` (§7.10), `components/site-header.tsx` (§7.14),
-`app/layout.tsx` (metadata; keep theme script), `lib/game.ts`/`pgn.ts`/
+`app/layout.tsx` (metadata), `lib/game.ts`/`pgn.ts`/
 `pgn.test.ts` (done), `lib/clock.ts` + `lib/time-controls.ts` (keep for PLAY;
 their tests were inside old `game.test.ts` — recreate as `lib/clock.test.ts`
 per §7.6 with the original test cases listed there).
@@ -339,7 +270,7 @@ clocks). Format:
 (curly-brace-safe exporter used elsewhere; if `renderPgn` supersedes it for
 clock-bearing games keep both — buildPgn is for headerless quick export).
 
-### 7.3 Verdicts + brilliant detection (`lib/review.ts`) — write `review.test.ts`
+### 7.3 Verdicts + brilliant detection (`lib/review.ts`) — implemented
 
 Current thresholds (do not change): `EXCELLENT < 20`, `INACCURACY 50`,
 `MISTAKE 100`, `BLUNDER 200` centipawns. `classifyMove(loss, context)` currently
@@ -380,7 +311,7 @@ returns `forced | best | excellent | good | inaccuracy | mistake | blunder`.
    offered to a pawn), a recaptured sacrifice does not, no-opponent-info
    returns false.
 
-### 7.4 Engine levels (`lib/engine-levels.ts`) — to write
+### 7.4 Engine levels (`lib/engine-levels.ts`) — implemented
 
 ```ts
 export type EngineLevel = { id: number; label: string; depth: number; chaos: number; eloLabel?: string };
@@ -455,7 +386,7 @@ Suggested exposed subset: `1+0, 3+0, 3+2, 5+0, 5+3, 10+0, 10+5, 15+10` plus
 object; play page owns a `ClockFields` state and ticks `now` with
 `setInterval(500ms)` while `status === 'playing'`.
 
-### 7.7 Cookie storage (`lib/local-user.ts`) — to write
+### 7.7 Cookie storage (`lib/local-user.ts`) — implemented
 
 ```ts
 const DAY = 86400;
@@ -481,7 +412,7 @@ approach: extract the pure parts (`cap`, `dedupe`, `encode`) into exported
 functions and test those; cookie I/O stays untested (document why in a
 comment).
 
-### 7.8 Chess.com proxy — `app/api/chesscom/[username]/route.ts` — to write
+### 7.8 Chess.com proxy — `app/api/chesscom/[username]/route.ts` — implemented
 
 ```ts
 // app/api/chesscom/[username]/route.ts
@@ -496,14 +427,17 @@ import { NextResponse } from 'next/server';
   `fetch(url, { headers: { 'User-Agent': 'Arbiter Analysis Site (github.com/vivo6810/Chess-analyzer)' } })`.
 - Endpoint 1 — profile:
   `https://api.chess.com/pub/player/${u}` → reads
-  `name`, `username`, `avatar`, `joined`, `last_online`,
+  `name`, `username`, `avatar`, `joined`, `last_online`.
+- Endpoint 2 — current stats:
+  `https://api.chess.com/pub/player/${u}/stats` → reads
   `chess_bullet.last.rating`, `chess_blitz.last.rating`,
-  `chess_rapid.last.rating`, `chess_daily.last.rating`.
-- Endpoint 2 — archive discovery:
+  `chess_rapid.last.rating`, and `chess_daily.last.rating` (the profile
+  endpoint itself does not reliably include those fields).
+- Endpoint 3 — archive discovery:
   `https://api.chess.com/pub/player/${u}/games/archives` → array of monthly
   URLs; **iterate newest-first**, stop when `limit` games collected or
   `months` months consumed (cap months at 6 to protect latency).
-- Endpoint 3 — month:
+- Endpoint 4 — month:
   `https://api.chess.com/pub/player/${u}/games/${yyyy}/${mm}` →
   `{ games: [...] }`. For each game:
   - skip `rules !== 'chess'` variants (chess960 has its own openings table).
@@ -565,8 +499,10 @@ import { NextResponse } from 'next/server';
 Current flow (do not disturb): positions array from fens; for each it calls
 `useEngine().analyse(fen, depth=12)`; computes `loss` from position-before vs
 position-after eval; `classifyMove(loss, {onlyMove, matchesBestMove})`;
-`accuracyFromLoss(avg, count)` for both sides (filters by mover); rating
-estimate via `ratingFromAccuracy`.
+`accuracyFromLoss(avg, count)` for both sides (filters by mover). Do not
+convert engine accuracy into an Elo estimate: a single game review cannot
+reliably estimate playing strength. Show Chess.com game ratings when provided;
+otherwise show that the rating is unavailable.
 
 Additions (this is the "scoreboard like Chess.com"):
 
@@ -587,17 +523,16 @@ Additions (this is the "scoreboard like Chess.com"):
      show `average time per move` per color — the "approximate time per move"
      the user asked for at the bottom. When `clk` is absent show a quiet
      "this game has no clock record".
-   - Accuracy numbers + estimated strength per color, already computed, just
-     surface them with headings.
+   - Accuracy numbers and actual Chess.com game ratings per color; do not
+     present accuracy-derived Elo estimates. Show rating as unavailable when
+     the PGN does not include rating metadata.
 3. Keep the run/stop/cancel button set; disable while running; respect
    `controlled` prop pattern (`selectedPly`/`onSelectPly`) that the replay uses
    today.
 
-Use the labels from §1 verbatim —
-do not invent different wording ("inexact" is what the user asked to call what
-the table calls inaccuracy).
+Use the labels from §1 verbatim — call the verdict `inaccuracy`.
 
-### 7.11 `/play` page — `app/play/page.tsx` — to write
+### 7.11 `/play` page — `app/play/page.tsx` — implemented
 
 One `'use client'` file. State machine: `idle → playing → finished`.
 Renders three columns on lg (`board | move list | setup panel`), collapsing to
@@ -639,7 +574,7 @@ Playing state:
 - **No server involvement.** The played game never leaves the browser unless
   the user pushes Analyse (which also stays client-side).
 
-### 7.12 `/analysis` page — `app/analysis/page.tsx` — to write
+### 7.12 `/analysis` page — `app/analysis/page.tsx` — implemented
 
 One `'use client'` file. Two tabs at the top (buttons, `aria-selected`):
 **Chess.com** and **PGN**. `useSearchParams` prefill `?u=username`.
@@ -673,21 +608,21 @@ One `'use client'` file. Two tabs at the top (buttons, `aria-selected`):
 - **The "loading" label on the review button is by design** (WASM boot) — the
   user sees it per the pattern in `use-engine`.
 
-### 7.13 `/profile` page — `app/profile/page.tsx` — to write
+### 7.13 `/profile` page — `app/profile/page.tsx` — implemented
 
 One `'use client'` file. Enter (or select from cookie) a Chess.com username →
 
 1. Fetch `/api/chesscom/${username}?limit=100&months=3` (reuse route, bigger
    cap; if empty, message). rememberProfile.
-2. **Mode rating graph**: from `profile.chess_*` last + best values is
+2. **Per-mode rating graphs**: from `profile.chess_*` last + best values is
    insufficient — Chess.com pub API has ratings-over-time at
    `/pub/player/{u}/ratings?wall=...`? It does NOT — the public endpoint that
    exists is `/pub/player/{u}` (static) and per-month games (which carry
    `white.rating` per game — the actual per-game rating). Build the Elo
    graph **from the games themselves**: x = date, y = the user's rating in
    that game (they may be white or black — pick the seat matching the
-   username, case-insensitive), one polyline per `time_class` mode (a legend
-   with chips). SVG like §7.10 eval graph.
+   username, case-insensitive). Render a separate graph for each `time_class`
+   the player has played; omit modes without games. SVG like §7.10 eval graph.
 3. **Aggregate verdict report**: for performance, run a **light engine pass**:
    depth 8 instead of 12, and a **cap of ~20 games per click** with a visible
    progress bar (reuse the review's progress logic). Use `useEngine` once for
@@ -697,7 +632,8 @@ One `'use client'` file. Enter (or select from cookie) a Chess.com username →
    from §7.10 helpers, per-mode accuracy averages). "Most mistakes happen by
    move 15" is NOT required — keep phase cut simple: early (≤10), middle
    (11–30), late (31+): show a tiny 3-bucket bar per side.
-   Openings aggregation: from `openings.ts`, count ECO names per game; top 5.
+   Openings aggregation: from `openings.ts`, count opening names per game;
+   show the top 5 as a bulleted list without ECO-code prefixes.
 5. Profile history (cookie list) is rendered as chips — click = re-run.
 
 This page is the heaviest computation in the app. It must:
@@ -708,7 +644,7 @@ This page is the heaviest computation in the app. It must:
   worker on unmount, so un-mounting is safe);
 - cap total time (e.g. max 20 games × ~60 plies × depth 8 in browser ≈ fine).
 
-### 7.14 Landing, header, footer, layout — edits specified
+### 7.14 Landing, header, footer, layout — implemented
 
 **`app/page.tsx`**: keep ONLY the `<section>` labelled `Hero` (top) and the
 `<NotationMarquee />` under it. Delete: the "The room" band section with bento
@@ -733,8 +669,7 @@ const NAV: GooeyNavItem[] = [
   { label: 'Profile', href: '/profile' },
 ];
 ```
-Remove the `AccountChip` import + usage. Nothing else changes (the mobile
-menu, scrim, theme toggle all stay).
+Remove the `AccountChip` import + usage. Keep the mobile menu and scrim.
 
 **`components/site-footer.tsx`**: columns →
 `Play: [{Play the engine, /play}]`, `Study: [{Analyze a game, /analysis},
@@ -744,11 +679,15 @@ your profiles live in your browser."
 **`app/layout.tsx`**: metadata →
 `title: 'Arbiter — play the engine, analyze any game'`,
 `description: 'Chess.com-fetch or PGN into a brutally honest review: brilliant to blunder, accuracy and the clock, with Stockfish levels to play against.'`
-Keep `Geist` fonts, the theme script, and the data-scroll-behavior attribute.
+Keep `Geist` fonts and the data-scroll-behavior attribute.
 
 ---
 
-## 8. Deletion checklist (exact paths)
+## 8. Deletion checklist (completed)
+
+The obsolete account, database, tournament, challenge, and import files below
+have been removed from this checkout. Do not restore them or rerun these
+deletions as implementation work.
 
 `git rm` each of these (they are inside `chess_tournament/`, op via the nested
 repo):
@@ -814,7 +753,7 @@ Then fix any straggler import (the deletions above cover the ones that exist).
 
 ---
 
-## 9. Config edits (exact)
+## 9. Config edits (completed)
 
 1. **`next.config.ts`** — remove `serverExternalPackages: ['libsql']` (its
    comment too; nothing server-side is native anymore). KEEP
@@ -831,7 +770,7 @@ Then fix any straggler import (the deletions above cover the ones that exist).
 
 ---
 
-## 10. Docs and scripts to update
+## 10. Docs and scripts (updated)
 
 - **This file** stays at the top and keeps growing when decisions change.
 - **`CHANGES.md`** — append (do not delete history) a section
@@ -868,48 +807,13 @@ plays at Level 1 (slow, wobbly) vs Level 6 (sharp but noticeably slower than sea
 
 ---
 
-## 12. Commit + GitHub push procedure (exact commands)
+## 12. Commit and publish
 
-Commit messages here are **sentence case, imperative, no prefix** —
-see `git log`. Model:
-
-```
-Remove the accounts and the database, and rebuild around analysis
-```
-
-Body (2–6 lines) explains WHY. End with:
-
-```
-🤖 Generated with Codebuff
-Co-Authored-By: Codebuff <noreply@codebuff.com>
-```
-
-**Commit flow:**
-
-```bash
-cd chess_tournament
-git add -A
-git status                     # LOOK. No node_modules, no .vercel, no data/*.db
-git commit -m "$(cat <<'EOF'
-<subject>
-
-<why lines>
-
-🤖 Generated with Codebuff
-Co-Authored-By: Codebuff <noreply@codebuff.com>
-EOF
-)"
-```
-
-Then mirror-push to `Chess-analyzer` (connected repo) **exactly per §2**.
-After pushing, verify via `git fetch` in the worktree:
-
-```bash
-git log --oneline FETCH_HEAD -4        # your new commit on top of old main
-git ls-tree FETCH_HEAD | head -5       # package.json + next.config.ts at ROOT
-```
-
-Never push elsewhere. Never `--force`.
+The nested-repository and mirror-push procedure formerly described here does
+not apply: `Chess-analyzer` itself is the connected repository and the app is
+at its root. Do not commit or push unless the user requests it. If requested,
+use the repository's ordinary non-interactive Git workflow and never
+force-push.
 
 ---
 
@@ -941,10 +845,8 @@ Never push elsewhere. Never `--force`.
 11. **Chess.com rate limits.** Server route "`revalidate: 300`"; the UI shows
     the cached copy happily; if you hammer it with profile-report runs, batch
     — the report should reuse one fetch result, not re-fetch per metric.
-12. **GitHub dual-repo sync** — follow §2 exactly; in particular the mirror
-    tree must place the nested tree at ROOT (`read-tree --prefix=` cannot do
-    that alone: the new-commit tree IS the nested tree) and HEAD
-    restoration is mandatory.
+12. **Repository layout** — the app is already at the connected repository's
+    root; do not create a nested app or perform a mirror-sync HEAD dance.
 13. **Never re-import the deleted DB layer** (`lib/db.ts`, `service.ts`). If
     an old type is handy, inline it; the past is not to be resurrected.
 14. **Never store user data in the server filesystem.** There is no persistent
@@ -957,7 +859,44 @@ Never push elsewhere. Never `--force`.
 
 ---
 
-## 14. Future work pool (park your ideas here, in order)
+## 14. User follow-ups and future work
+
+User-reported follow-ups (2026-10-25; implemented after the user authorized
+the fixes):
+
+1. **Dedicated game analysis page — implemented**: selecting a Chess.com
+   recent game opens its own `/analysis/[id]` page with that game's replay
+   and analysis only.
+2. **Single palette and analytics contrast — implemented**: the dark-mode
+   toggle and alternate palette are removed. Verdict bars use differentiated
+   grayscale tones and the clock graph identifies both player series.
+3. **Recent Chess.com games cutoff — implemented**:
+   recent games were omitted because the proxy applied its limit before
+   selecting newest archive entries. The route now traverses monthly archive
+   games newest-first, then sorts and limits the result. Verified that
+   Magnus Carlsen's October 23 games against Toxicmybrother appear at the top
+   of the list.
+4. **Analysis summary and move navigation — implemented**: verdict totals are
+   compact and inline, `Show more` reveals the detailed move list, selecting
+   a move seeks the board, and reviewed moves show verdict badges in the board
+   move list.
+5. **Verdict wording — implemented**: the full label `inaccuracy` is used.
+6. **Profile rating graphs and opening list — implemented**: rating history is
+   split into one graph per mode represented in recent games, and favorite
+   openings are bulleted with ECO prefixes removed.
+7. **Board player rows and responsive sizing — implemented**: both player areas
+   around the board symmetrically. On the opponent side above the board and
+   the player's side below it, show names, captured pieces, a high-contrast
+   `+N` material lead only when positive, and that side's clock. Empty capture
+   labels and zero material text are omitted. The board remains responsive,
+   and the user-provided split-flap animation is reused for the clocks.
+8. **Play-board input and game-end feedback — implemented**: selecting a
+   piece shows only its legal destinations with grey markers; pinned pieces
+   use chess.js legal-move rules. On a win, confetti celebrates over the board.
+   On a loss, the losing king falls right and a translucent red ripple crosses
+   the board. Reduced-motion preferences disable the moving overlays.
+
+Previously listed ideas:
 
 1. **PGN sharing**: copy-paste button of the current position as FEN, plus a
    "share analysis" URL that spends the full PGN in `?pgn=` (URL-encoded,

@@ -11,9 +11,13 @@ import {
 import { Chessboard, defaultPieces } from 'react-chessboard';
 
 import EnginePanel from '@/components/engine-panel';
-import GameReview from '@/components/game-review';
+import GameReview, { VERDICT_STYLE } from '@/components/game-review';
+import PlayerBoardRow from '@/components/player-board-row';
 import { kingSquare, targetsFrom, type MoveTarget, type Side } from '@/lib/chess-ui';
+import { capturedPieces, materialAdvantage } from '@/lib/material';
+import { formatClockTiles } from '@/lib/time-controls';
 import type { ReviewMove } from '@/components/game-review';
+import type { MoveVerdict } from '@/lib/review';
 
 /**
  * The completed game's board.
@@ -26,10 +30,18 @@ import type { ReviewMove } from '@/components/game-review';
  */
 
 export type ReplayProps = {
-  gameId: number;
+  gameId: string;
   startFen: string;
   moves: ReviewMove[];
   result: string | null;
+  pgn: string | null;
+  white: string;
+  black: string;
+  whiteRating?: number | null;
+  blackRating?: number | null;
+  timeControl?: string | null;
+  whiteClock?: number[];
+  blackClock?: number[];
 };
 
 const DOT: CSSProperties = {
@@ -53,45 +65,36 @@ function inCheck(fen: string): boolean {
 
 type Branch = { fens: string[]; index: number };
 
-/** Material diff against the game's own starting position, per piece kind. */
-function capturedFor(startFen: string, fen: string) {
-  const counts = (source: string) => {
-    const map = new Map<string, number>();
-    try {
-      for (const row of new Chess(source).board()) {
-        for (const square of row) {
-          if (!square) continue;
-          const key = `${square.color}${square.type.toUpperCase()}`;
-          map.set(key, (map.get(key) ?? 0) + 1);
-        }
-      }
-    } catch {
-      return map;
-    }
-    return map;
-  };
-
-  const start = counts(startFen);
-  const now = counts(fen);
-  const kinds = ['P', 'N', 'B', 'R', 'Q'];
-  const missing = (color: 'w' | 'b') =>
-    kinds.flatMap((kind) => {
-      const key = `${color}${kind}`;
-      const gone = (start.get(key) ?? 0) - (now.get(key) ?? 0);
-      return gone > 0 ? new Array(gone).fill(key) : [];
-    });
-
-  /* White's trophies are the black pieces that never came back. */
-  return { whiteHas: missing('b'), blackHas: missing('w') };
-}
-
-export default function GameReplay({ gameId, startFen, moves, result }: ReplayProps) {
+export default function GameReplay({
+  gameId,
+  startFen,
+  moves,
+  result,
+  pgn,
+  white,
+  black,
+  whiteRating,
+  blackRating,
+  timeControl,
+}: ReplayProps) {
   const [ply, setPly] = useState(0); // 0 = starting position
   const [flip, setFlip] = useState(false);
   const [branch, setBranch] = useState<Branch | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<{ from: string; to: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [exportUrl, setExportUrl] = useState<string | null>(null);
+  const [moveVerdicts, setMoveVerdicts] = useState<MoveVerdict[]>([]);
+
+  useEffect(() => {
+    if (!pgn) {
+      setExportUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([pgn], { type: 'application/x-chess-pgn' }));
+    setExportUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pgn]);
 
   const gameFen = ply === 0 ? startFen : moves[ply - 1].fen;
   const fen = branch ? branch.fens[branch.index] : gameFen;
@@ -246,13 +249,31 @@ export default function GameReplay({ gameId, startFen, moves, result }: ReplayPr
     return styles;
   }, [exploring, fen, moves, ply, selected, targets, turn]);
 
-  const captured = useMemo(() => capturedFor(startFen, fen), [startFen, fen]);
+  const captured = useMemo(() => capturedPieces(startFen, fen), [startFen, fen]);
+  const initialClockMs = useMemo(() => {
+    const match = /^(\d+)(?:\/(\d+)|\+\d+)?$/.exec(timeControl ?? '');
+    if (!match) return null;
+    return Number(match[2] ?? match[1]) * 1000;
+  }, [timeControl]);
+  const recordedClock = (side: Side): number | null => {
+    const lastMove = moves.slice(0, ply).reverse().find((move) => {
+      const mover = move.fen.split(' ')[1] === 'w' ? 'b' : 'w';
+      return mover === side && move.clk != null;
+    });
+    return lastMove?.clk != null ? lastMove.clk * 1000 : initialClockMs;
+  };
+  const topSide: Side = flip ? 'w' : 'b';
+  const bottomSide: Side = topSide === 'w' ? 'b' : 'w';
+  const materialFor = (side: Side) => materialAdvantage(captured, side);
+  const piecesFor = (side: Side) => side === 'w' ? captured.whiteHas : captured.blackHas;
+  const displayName = (side: Side) => side === 'w' ? white : black;
+  const displayRating = (side: Side) => side === 'w' ? whiteRating : blackRating;
 
   const buttonClass =
     'press min-h-10 border-2 border-line-strong bg-surface px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-bone disabled:opacity-40';
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-8">
+    <div aria-label={`Game ${gameId} replay`} className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-8">
       <div className="min-w-0 space-y-3">
         {exploring ? (
           <div className="flex flex-wrap items-center gap-2 border-2 border-info-fg bg-info-bg px-3 py-2">
@@ -279,7 +300,16 @@ export default function GameReplay({ gameId, startFen, moves, result }: ReplayPr
           </div>
         ) : null}
 
-        <div className="board-shell relative overflow-hidden border-2 border-line select-none">
+        <PlayerBoardRow
+          side={topSide}
+          name={displayName(topSide)}
+          rating={displayRating(topSide)}
+          captures={piecesFor(topSide)}
+          material={materialFor(topSide)}
+          clock={recordedClock(topSide)}
+          active={!exploring && turn === topSide}
+        />
+        <div className="board-shell relative mx-auto aspect-square w-full max-w-[min(100%,70dvh)] overflow-hidden border-2 border-line select-none">
           <Chessboard
             options={{
               id: 'arbiter-replay-board',
@@ -340,6 +370,15 @@ export default function GameReplay({ gameId, startFen, moves, result }: ReplayPr
             </div>
           ) : null}
         </div>
+        <PlayerBoardRow
+          side={bottomSide}
+          name={displayName(bottomSide)}
+          rating={displayRating(bottomSide)}
+          captures={piecesFor(bottomSide)}
+          material={materialFor(bottomSide)}
+          clock={recordedClock(bottomSide)}
+          active={!exploring && turn === bottomSide}
+        />
 
         {/* ── Navigation ─────────────────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-2">
@@ -381,13 +420,15 @@ export default function GameReplay({ gameId, startFen, moves, result }: ReplayPr
           <button type="button" className={buttonClass} onClick={() => void copyFen()}>
             {copied ? 'Position copied' : 'Copy FEN'}
           </button>
-          <a
-            href={`/api/games/${gameId}/pgn`}
-            download
-            className="press inline-flex min-h-10 items-center border-2 border-ink bg-accent px-3 py-1.5 text-[13px] font-bold text-on-accent shadow-brut-sm"
-          >
-            Export PGN
-          </a>
+          {exportUrl ? (
+            <a
+              href={exportUrl}
+              download={`${white}-vs-${black}.pgn`.replace(/[\\/:*?"<>|]/g, '-')}
+              className="press inline-flex min-h-10 items-center border-2 border-ink bg-accent px-3 py-1.5 text-[13px] font-bold text-on-accent shadow-brut-sm"
+            >
+              Export PGN
+            </a>
+          ) : null}
         </div>
 
         <p className="flex min-h-5 items-center gap-2 text-[12px] text-muted">
@@ -401,8 +442,6 @@ export default function GameReplay({ gameId, startFen, moves, result }: ReplayPr
           </span>
         </p>
 
-        {/* ── Material off the board ─────────────────────────────── */}
-        <CapturedTrays captured={captured} />
       </div>
 
       <aside className="min-w-0 space-y-4">
@@ -430,6 +469,16 @@ export default function GameReplay({ gameId, startFen, moves, result }: ReplayPr
                         {movePly % 2 === 1 ? '.' : '…'}
                       </span>
                       {move.san}
+                      {moveVerdicts[index] ? (
+                        <sup
+                          className={`ml-1 align-super text-[8px] leading-none ${VERDICT_STYLE[moveVerdicts[index]]}`}
+                          aria-label={moveVerdicts[index]}
+                          title={moveVerdicts[index]}
+                        >
+                          {moveVerdicts[index]}
+                        </sup>
+                      ) : null}
+                      {move.clk != null ? <span className="ml-1 text-muted">{formatClockTiles(move.clk * 1000)}</span> : null}
                     </button>
                   </li>
                 );
@@ -443,43 +492,13 @@ export default function GameReplay({ gameId, startFen, moves, result }: ReplayPr
         <GameReview
           initialFen={startFen}
           moves={moves}
+          whiteRating={whiteRating}
+          blackRating={blackRating}
           selectedPly={ply}
           onSelectPly={seek}
+          onReviewsChange={setMoveVerdicts}
         />
       </aside>
-    </div>
-  );
-}
-
-function CapturedTrays({
-  captured,
-}: {
-  captured: { whiteHas: string[]; blackHas: string[] };
-}) {
-  if (captured.whiteHas.length === 0 && captured.blackHas.length === 0) return null;
-
-  const tray = (owner: string, pieces: string[]) => (
-    <div className="flex min-h-6 flex-1 items-center gap-1 border-2 border-line bg-surface-sunken px-2.5 py-1">
-      <span className="mr-1 font-mono text-[10px] tracking-[0.12em] text-muted uppercase">{owner}</span>
-      {pieces.length === 0 ? (
-        <span className="font-mono text-[11px] text-muted">nothing</span>
-      ) : (
-        pieces.map((key, index) => {
-          const Icon = defaultPieces[key];
-          return (
-            <span key={`${key}-${index}`} className="block h-5 w-5" aria-hidden="true">
-              <Icon />
-            </span>
-          );
-        })
-      )}
-    </div>
-  );
-
-  return (
-    <div className="flex flex-wrap items-stretch gap-2 text-[12px]">
-      {tray('White took', captured.whiteHas)}
-      {tray('Black took', captured.blackHas)}
     </div>
   );
 }

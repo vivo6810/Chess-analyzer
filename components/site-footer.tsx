@@ -3,18 +3,13 @@ import Link from 'next/link';
 const COLUMNS = [
   {
     title: 'Play',
-    links: [
-      { label: 'Challenge a player', href: '/' },
-      { label: 'Tournament records', href: '/tournaments' },
-      { label: 'Players', href: '/players' },
-    ],
+    links: [{ label: 'Play the engine', href: '/play' }],
   },
   {
     title: 'Study',
     links: [
-      { label: 'Analysis board', href: '/analysis' },
-      { label: 'Import a PGN', href: '/import' },
-      { label: 'Sign in', href: '/login' },
+      { label: 'Analyze a game', href: '/analysis' },
+      { label: 'Profile report', href: '/profile' },
     ],
   },
 ];
@@ -32,8 +27,7 @@ export default function SiteFooter() {
         <div>
           <p className="text-[15px] font-semibold tracking-[-0.02em] text-ink">Arbiter</p>
           <p className="mt-3 max-w-[34ch] text-[13px] leading-relaxed text-muted">
-            Your chess, on the record. Profiles, game history and Stockfish review over every
-            finished game.
+            No accounts, no servers — your games and your profiles live in your browser.
           </p>
         </div>
 

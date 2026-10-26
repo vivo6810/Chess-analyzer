@@ -7,35 +7,17 @@ import './GooeyNav.css';
 
 const useIsomorphicLayoutEffect = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
-export type GooeyNavTheme = 'dark' | 'light';
-
-type ThemeVars = Record<string, string>;
-
-const THEMES: Record<GooeyNavTheme, ThemeVars> = {
-  dark: {
-    '--gn-frame': 'rgba(38, 35, 46, 0.66)',
-    '--gn-frame-edge': 'rgba(255, 255, 255, 0.08)',
-    '--gn-frame-highlight': 'rgba(255, 255, 255, 0.07)',
-    '--gn-frame-shadow':
-      '0 22px 44px -20px rgba(0, 0, 0, 0.8), 0 6px 16px -8px rgba(0, 0, 0, 0.5)',
-    '--gn-ink': '#f4f4f5',
-    '--gn-muted': 'rgba(244, 244, 245, 0.62)',
-  },
-  light: {
-    '--gn-frame': 'rgba(240, 240, 243, 0.8)',
-    '--gn-frame-edge': 'rgba(24, 24, 27, 0.07)',
-    '--gn-frame-highlight': 'rgba(255, 255, 255, 0.95)',
-    '--gn-frame-shadow':
-      '0 22px 44px -22px rgba(24, 24, 27, 0.3), 0 6px 16px -10px rgba(24, 24, 27, 0.16)',
-    '--gn-ink': '#27272a',
-    '--gn-muted': 'rgba(39, 39, 42, 0.62)',
-  },
+const THEME: Record<string, string> = {
+  '--gn-frame': 'rgba(240, 240, 243, 0.8)',
+  '--gn-frame-edge': 'rgba(24, 24, 27, 0.07)',
+  '--gn-frame-highlight': 'rgba(255, 255, 255, 0.95)',
+  '--gn-frame-shadow':
+    '0 22px 44px -22px rgba(24, 24, 27, 0.3), 0 6px 16px -10px rgba(24, 24, 27, 0.16)',
+  '--gn-ink': '#27272a',
+  '--gn-muted': 'rgba(39, 39, 42, 0.62)',
 };
 
-const PILLS: Record<GooeyNavTheme, { color: string; hover: string; shadow: number }> = {
-  dark: { color: '#f4f4f5', hover: 'rgba(255, 255, 255, 0.08)', shadow: 0.4 },
-  light: { color: '#27272a', hover: 'rgba(24, 24, 27, 0.06)', shadow: 0.2 },
-};
+const PILL = { color: '#27272a', hover: 'rgba(24, 24, 27, 0.06)', shadow: 0.2 };
 
 const SIZES = { sm: 'gooey-nav--sm', md: 'gooey-nav--md', lg: 'gooey-nav--lg' } as const;
 
@@ -260,7 +242,6 @@ export type GooeyNavProps = {
   initialActiveIndex?: number;
   activeIndex?: number;
   onChange?: (index: number, item: GooeyNavItem) => void;
-  theme?: GooeyNavTheme;
   color?: string;
   activeTextColor?: string;
   colors?: string[];
@@ -268,11 +249,8 @@ export type GooeyNavProps = {
   frame?: boolean;
   /*
    * Leave the frame CSS variables to the stylesheet instead of setting them
-   * inline, so `[data-theme]` can drive them. Inline values beat CSS, so
-   * without this the chrome is pinned to whichever theme the server guessed
-   * and visibly flips colour the moment React hydrates. The canvas particles
-   * still read their colours from `theme`, since those have to be real values
-   * rather than var() references.
+   * inline, so the stylesheet can set the frame colors. Canvas particles
+   * use fixed palette values rather than CSS variables.
    */
   adaptive?: boolean;
   animationTime?: number;
@@ -289,7 +267,7 @@ export type GooeyNavProps = {
    * What to render for an item that has an `href`. Defaults to a plain anchor,
    * which is a full document load — fine for a static marketing page, wrong in
    * a router, where every nav click would throw the app away, replay the
-   * theme script and cut off the press animation mid-flight. Injecting
+   * document and cut off the press animation mid-flight. Injecting
    * `next/link` keeps navigation client-side so the feedback can finish.
    */
   linkComponent?: ElementType;
@@ -300,7 +278,6 @@ export default function GooeyNav({
   initialActiveIndex = 0,
   activeIndex,
   onChange,
-  theme = 'dark',
   color,
   activeTextColor,
   colors = [],
@@ -338,8 +315,7 @@ export default function GooeyNav({
   const indexRef = useRef(current);
   indexRef.current = current;
 
-  const palette: GooeyNavTheme = theme === 'light' ? 'light' : 'dark';
-  const pillColor = color || PILLS[palette].color;
+  const pillColor = color || PILL.color;
   const pillRgb = parse(pillColor);
 
   const settingsRef = useRef({
@@ -352,8 +328,8 @@ export default function GooeyNav({
     hoverEffect,
     pillRgb,
     tints: [] as Rgba[],
-    hoverRgb: parse(PILLS[palette].hover),
-    shadow: PILLS[palette].shadow,
+    hoverRgb: parse(PILL.hover),
+    shadow: PILL.shadow,
   });
   settingsRef.current = {
     animationTime,
@@ -365,8 +341,8 @@ export default function GooeyNav({
     hoverEffect,
     pillRgb,
     tints: colors.map(parse),
-    hoverRgb: parse(PILLS[palette].hover),
-    shadow: PILLS[palette].shadow,
+    hoverRgb: parse(PILL.hover),
+    shadow: PILL.shadow,
   };
 
   const select = useCallback(
@@ -936,7 +912,7 @@ export default function GooeyNav({
 
   useEffect(() => {
     engineRef.current?.refresh();
-  }, [pillColor, palette, gooeyness, size, frame]);
+  }, [pillColor, gooeyness, size, frame]);
 
   const textColor = activeTextColor || contrastInk(pillRgb);
 
@@ -994,7 +970,7 @@ export default function GooeyNav({
       className={`gooey-nav ${SIZES[size] ?? SIZES.md}${frame ? ' gooey-nav--framed' : ''}${adaptive ? ' gooey-nav--adaptive' : ''} ${className}`.trim()}
       style={
         {
-          ...(adaptive ? null : THEMES[palette]),
+          ...(adaptive ? null : THEME),
           /* Adaptive suppresses the derived defaults, not an explicit choice:
              a caller who hands over a `color` or `activeTextColor` still gets
              exactly what they asked for. */

@@ -4,7 +4,6 @@ import { Chess } from 'chess.js';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Chessboard, defaultPieces, type PieceRenderObject } from 'react-chessboard';
 
-import Confetti from '@/components/confetti';
 import {
   fenAfter,
   isLegalMove,
@@ -32,19 +31,19 @@ const DEPTH = 10;
 const MAX_PREMOVES = 5;
 
 /**
- * Legal destinations, drawn in green.
+ * Legal destinations, drawn as neutral grey markers.
  *
  * A quiet move is a dot and a capture is a ring, both with a one-pixel ink rim.
- * The rim is not decoration: the marker sits on both square colours, and green
+ * The rim is not decoration: the marker sits on both square colours, and grey
  * alone is a different marker on cream than it is on a shadowed square.
  */
 const HINT_DOT: CSSProperties = {
   backgroundImage:
-    'radial-gradient(circle at 50% 50%, var(--color-move-hint) 0 16%, var(--color-ink) 17% 20%, transparent 21%)',
+    'radial-gradient(circle at 50% 50%, #555 0 16%, #f4f0e7 17% 20%, transparent 21%)',
 };
 const HINT_RING: CSSProperties = {
   backgroundImage:
-    'radial-gradient(circle at 50% 50%, transparent 0 35%, var(--color-move-hint) 36% 47%, var(--color-ink) 48% 52%, transparent 53%)',
+    'radial-gradient(circle at 50% 50%, transparent 0 35%, #555 36% 47%, #f4f0e7 48% 52%, transparent 53%)',
 };
 
 /**
@@ -365,7 +364,6 @@ export default function HeroArena() {
           }}
         />
 
-        {userWon ? <Confetti count={46} fall={520} /> : null}
       </div>
 
       <p className="mt-3 font-mono text-[11px] leading-relaxed text-muted">

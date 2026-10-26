@@ -1,15 +1,14 @@
 /**
- * Server-authoritative clocks.
+ * Deterministic clock settlement shared by the browser game.
  *
  * Deliberately imports nothing. Clock arithmetic is independent of chess rules,
  * so keeping it free of dependencies means it can be reasoned about (and tested)
  * in isolation, and it cannot accidentally pick up a bundler-only resolution
  * dependency.
  *
- * The server stores each side's remaining milliseconds, whose turn it is, and
- * the server timestamp that turn began. The client renders a locally ticking
- * estimate between updates but never submits its own elapsed time — if it did,
- * a player could simply report that they had used zero seconds.
+ * The browser keeps each side's remaining milliseconds and the timestamp the
+ * current turn began. `settleClock` is pure so the play page and its tests use
+ * identical flag and increment rules.
  */
 
 export type ClockRules = {

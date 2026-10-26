@@ -4,20 +4,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import AccountChip from '@/components/account-chip';
 import GooeyNav, { type GooeyNavItem } from '@/components/gooey-nav/GooeyNav';
-import ThemeToggle from '@/components/theme-toggle';
-import { useTheme } from '@/lib/use-theme';
 
 const NAV: GooeyNavItem[] = [
-  { label: 'Play', href: '/' },
-  { label: 'Tournaments', href: '/tournaments' },
-  { label: 'Players', href: '/players' },
-  { label: 'Analysis', href: '/analysis' },
+  { label: 'Play', href: '/play' },
+  { label: 'Analyze', href: '/analysis' },
+  { label: 'Profile', href: '/profile' },
 ];
 
-/* Longest prefix wins, so /tournaments/new resolves to "Host" rather
-   than being swallowed by /tournaments. */
+/* Longest prefix wins for nested routes such as profile history or analysis. */
 const activeIndexFor = (pathname: string) => {
   let best = 0;
   let bestLength = -1;
@@ -36,11 +31,6 @@ const PANEL_ID = 'site-menu';
 
 export default function SiteHeader() {
   const pathname = usePathname();
-  /* GooeyNav draws its gooey particles on a canvas, so those colours have to
-     be literal values rather than var() references and still come from JS.
-     The frame chrome is driven by CSS and is therefore already correct on the
-     first paint — only the particles settle a beat after hydration. */
-  const theme = useTheme();
   const [open, setOpen] = useState(false);
   const active = activeIndexFor(pathname);
 
@@ -76,9 +66,6 @@ export default function SiteHeader() {
             aria-label="Sections"
             items={NAV}
             size="sm"
-            theme={theme}
-            /* Lets the stylesheet own the frame colours so they follow
-               `[data-theme]` from the very first frame. */
             adaptive
             activeIndex={active}
             /* Navigation is the link's job. Pushing here as well navigated
@@ -86,8 +73,6 @@ export default function SiteHeader() {
                push cut off the press animation the first one started. */
             linkComponent={Link}
           />
-          <AccountChip className="press flex-none border-2 border-line-strong bg-bone px-2.5 py-1.5 font-mono text-[10px] font-bold tracking-[0.12em] text-ink uppercase shadow-brut-sm hover:bg-surface" />
-          <ThemeToggle />
         </div>
 
         {/* ── Small screens: a button, and a menu that drops down ──
@@ -95,7 +80,6 @@ export default function SiteHeader() {
             its items wrap onto several rows and the gooey surface inflates
             into a blob that covers the page. A phone gets a real menu. */}
         <div className="flex items-center gap-2 md:hidden">
-          <ThemeToggle />
           <button
             type="button"
             onClick={() => setOpen((value) => !value)}

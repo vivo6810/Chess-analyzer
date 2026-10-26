@@ -177,3 +177,56 @@ Nothing here is broken; the list is sequencing, not a fix list.
 4. Any new page/route edit: update `INIT.md` in the same change. Its rule is
    code wins over docs. The Turso account itself is the only remaining user
    step in §8.
+
+## cookie-only rewrite (2026-10-25)
+
+The product has moved from account-backed games and tournaments to local chess
+play and analysis. The login, registration, challenge, tournament, player
+directory, import, and server game APIs were removed with their database and
+auth modules. The top navigation now has only Play, Analyze, and Profile.
+
+Games can be played against eight client-side Stockfish levels with clocks,
+then handed directly to the analyzer. Analysis accepts a Chess.com username or
+PGN, stores compact history in browser cookies, and adds brilliant-sacrifice
+labels, evaluation and clock graphs, accuracy estimates, and verdict counts.
+The Chess.com public API is fetched through a stateless, cached route. Profile
+reports aggregate a bounded set of recent games in the browser.
+
+The following Vercel environment variables are no longer needed and should be
+removed from the project settings: `TURSO_*` (including `TURSO_DATABASE_URL`
+and `TURSO_AUTH_TOKEN`), `SQLITE_DRIVER`, and `DATABASE_PATH`. There is no
+server-side database or user-data persistence in this version.
+
+## User-reported follow-ups (2026-10-25)
+
+The user authorized implementing these follow-ups after finishing the issue
+list. The current UI and delivery status is recorded below.
+
+- **Recent Chess.com games cutoff — fixed in the current worktree:** the proxy
+  previously stopped after the first 60 games in chronological archive order,
+  before sorting. It now traverses archives newest-first and then sorts and
+  applies the requested limit. Verified the live Magnus Carlsen response
+  returns October 23 games against Toxicmybrother at the top, and the page
+  lists those games.
+- **Dedicated analysis page — implemented:** selecting a Chess.com recent
+  game opens its own `/analysis/[id]` page with the selected replay and review.
+- **Single palette and analytics contrast — implemented:** removed the
+  site-wide theme toggle and alternate palette; analysis bars use distinct
+  grayscale tones.
+- **Board player layout, clocks, and small-screen sizing — implemented:** the
+  replay and play boards show names, captured pieces, a compact `+N` material
+  lead only when positive, and side clocks. Empty-capture labels and zero
+  material text are omitted. The material badge has a high-contrast dark fill.
+  Board sizing adapts to the viewport.
+- **Play-board input and end-game effects — implemented:** clicking a piece
+  shows its legal destinations as grey dots/capture rings, constrained by
+  chess.js legal-move rules (including pins). A losing king falls 90 degrees
+  right and a loss triggers a translucent red board ripple; wins show board
+  confetti. Reduced-motion preferences suppress the moving effects.
+- **Analysis summary and move navigation — implemented:** verdict totals are
+  compact, `Show more` reveals the move details, selecting a move seeks the
+  board, and each reviewed move has a verdict badge in the move list.
+- **Verdict wording — implemented:** the full label `inaccuracy` is shown.
+- **Profile rating graphs and favorite openings — implemented:** separate
+  rating graphs appear for modes in the recent game sample; opening names are
+  bulleted and their ECO prefixes are removed.

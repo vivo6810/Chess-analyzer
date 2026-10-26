@@ -264,3 +264,46 @@ export function parsePgn(text: string): ParsedGame[] {
     }
   });
 }
+
+/** Renders a clock-aware PGN without relying on chess.js's comment support. */
+export function renderPgn(
+  headers: Record<string, string>,
+  moves: { san: string; clk?: number }[],
+  result = '*',
+): string {
+  const headerOrder = ['Event', 'Site', 'Date', 'White', 'Black', 'Result', 'TimeControl'];
+  const ordered = [
+    ...headerOrder.filter((key) => key in headers).map((key) => [key, headers[key]] as const),
+    ...Object.entries(headers).filter(([key]) => !headerOrder.includes(key)),
+  ];
+  const cleanHeader = (value: string) => value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]/g, ' ');
+  const headerLines = ordered.map(([key, value]) => `[${key} "${cleanHeader(value)}"]`);
+  const formatClock = (seconds: number) => {
+    const total = Math.max(0, Math.round(seconds));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const remainder = total % 60;
+    return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
+  };
+  const tokens: string[] = [];
+  moves.forEach((move, index) => {
+    if (index % 2 === 0) tokens.push(`${Math.floor(index / 2) + 1}.`);
+    tokens.push(move.san);
+    if (move.clk != null) tokens.push(`{[%clk ${formatClock(move.clk)}]}`);
+  });
+  tokens.push(result);
+
+  const lines: string[] = [];
+  let line = '';
+  for (const token of tokens) {
+    const next = line ? `${line} ${token}` : token;
+    if (next.length > 80 && line) {
+      lines.push(line);
+      line = token;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return `${headerLines.join('\n')}\n\n${lines.join('\n')}`;
+}

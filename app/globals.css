@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /* ────────────────────────────────────────────────────────────────
-   Arbiter — design system
+   Arbiter — single-palette design system
 
    A neobrutalist system, not a garnish. Three rules, and every
    surface in the app obeys them:
@@ -29,7 +29,7 @@
         are opposite on the wheel, so the accent is the only colour on
         the page that reads as *chosen* rather than neighbouring. It is
         spent only on things you can act on: primary buttons, focus
-        rings, the active nav pill, the toggle thumb. Thin, deliberate,
+        rings, and the active nav pill. Thin, deliberate,
         ~10% — a complement stops being an accent the moment it becomes
         a surface.
      3. **Status — green, red, amber.** Allowed to be loud because they
@@ -39,13 +39,10 @@
    Numbers below are ratios against the surface they sit on, and
    `lib/theme.test.ts` fails the build if any of them slip.
 
-   Every colour token is declared twice: once in `@theme static`
-   (light) and once in `[data-theme='dark']`. Nothing may exist in
-   only one set. `@theme static` rather than plain `@theme` because
+   `@theme static` rather than plain `@theme` because
    Tailwind tree-shakes theme variables it believes are unused, and it
    cannot see a `var()` sitting inside hand-written CSS or an inline
-   SVG. `lib/theme.test.ts` fails the build if the two key sets
-   diverge or a pair drops below its contrast floor.
+   SVG. `lib/theme.test.ts` checks the palette contrast floor.
    ──────────────────────────────────────────────────────────────── */
 
 @theme static {
@@ -89,9 +86,7 @@
      a card, since it can land on either. */
   --color-brut: #14120e;
 
-  /* Inverted solid. Buttons used to be `bg-ink text-white`; in dark mode
-     `ink` becomes cream, so white-on-cream would have erased them. These
-     two tokens always move together. */
+  /* Solid fills with their matching readable label color. */
   --color-solid: #14120e;
   --color-on-solid: #fbf8f2;
 
@@ -100,14 +95,7 @@
   --color-accent: #1d4ed8;
   --color-on-accent: #fbf8f2;
 
-  /* The band.
-
-     The one full-bleed dark section on the landing page is a *physical
-     object*, like the split-flap clock: it stays near-black in both
-     palettes, and so does the cream slab that sits on it. That is the
-     whole reason these are separate tokens rather than `solid` / `on-solid`
-     — those invert in dark mode, which would have turned the band cream and
-     put cream text on it. */
+  /* The band is a fixed near-black slab on the landing page. */
   --color-band: #14120e;
   --color-band-fg: #fbf7f1;
   --color-band-slab: #fbf7f1;
@@ -136,11 +124,8 @@
      underneath keep the contrast the board test above measures. */
   --color-move-hint: #127a3f;
 
-  /* Split-flap clock. Not a surface: a physical display bolted to the
-     page, so it keeps dark boards and bright digits in both palettes and
-     does not follow the canvas at all. In dark mode the board lifts and
-     picks up a lit edge instead, because a board the same value as the
-     page it sits on is not an object, it is a smudge. */
+  /* Split-flap clock. A physical display bolted to the page, so it keeps
+     dark boards and bright digits instead of following the canvas. */
   --color-flap-bg: #1b1815;
   --color-flap-fg: #f9f5ee;
   /* The side that is not on the move. Dimmer, but still ≥3:1 on the board:
@@ -166,80 +151,11 @@
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-/* ── Dark ──────────────────────────────────────────────────────
-   Not an inversion. The canvas drops to a warm near-black and the ink
-   lifts to cream, but the *board stays light* — a chessboard is an
-   ivory-and-umber physical object under a lamp. Darkening it would
-   have killed the one element the page is built around.
-
-   The offset shadow becomes *lighter* than the page here. A black
-   offset on a near-black canvas is not a shadow, it is nothing. */
-[data-theme='dark'] {
-  --color-canvas: #121110;
-  --color-bone: #1f1c18;
-  /* Raised surfaces have to gain value in dark mode or a card is invisible
-     on the page — the same failure as white-on-white, inverted. */
-  --color-surface: #2b2620;
-  --color-surface-sunken: #171513;
-
-  --color-line: #6b6154;
-  --color-line-strong: #857a68;
-
-  --color-muted: #aea59a;
-  --color-ink-soft: #e4ded4;
-  --color-ink: #fbf7f1;
-
-  --color-brut: #6b6257;
-
-  --color-solid: #f2ede4;
-  --color-on-solid: #16130f;
-
-  /* Complement flipped in value, not in hue: the accent has to be the
-     lightest thing on a dark page to stay an accent. */
-  --color-accent: #9dbcff;
-  --color-on-accent: #12100c;
-
-  /* Still a dark band in dark mode — a lighter one, so it reads as the same
-     object under different light rather than as a hole cut in the page. */
-  --color-band: #17140f;
-  --color-band-fg: #f3ede2;
-  --color-band-slab: #f8f3e9;
-  --color-band-slab-ink: #17140f;
-
-  --color-win-bg: #17251a;
-  --color-win-fg: #86c491;
-  --color-loss-bg: #2a1719;
-  --color-loss-fg: #e99995;
-  --color-draw-bg: #2a2214;
-  --color-draw-fg: #ddba66;
-  --color-info-bg: #14232e;
-  --color-info-fg: #8cc0e2;
-
-  --color-board-light: #c8bda8;
-  --color-board-dark: #6e6150;
-
-  /* Lifted for the same reason the board is: a green that works on cream is
-     a green nobody can see on a shadowed square. */
-  --color-move-hint: #5fd68a;
-
-  --color-flap-bg: #332d27;
-  --color-flap-fg: #fbf7f1;
-  --color-flap-idle: #8b8177;
-  --color-flap-alert: #ff9a80;
-}
-
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
     scroll-behavior: smooth;
-    /* Tells the browser to render form controls, scrollbars and the canvas
-       gutter in the matching scheme. Without this a dark page gets a white
-       scrollbar and white native inputs. */
     color-scheme: light;
-  }
-
-  html[data-theme='dark'] {
-    color-scheme: dark;
   }
 
   body {
@@ -514,86 +430,6 @@
     --gn-active-ink: var(--color-on-accent);
   }
 
-  /* ── Theme toggle ──────────────────────────────────────────────
-     Both icons are always in the DOM and the *attribute* on <html>
-     drives which one is lit. That matters: React state would not exist
-     until hydration, so the icon would render as light, then snap to
-     dark on every load in dark mode. CSS reads the attribute the
-     pre-paint script already set, so there is nothing to snap. */
-  .theme-toggle {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    border: 2px solid var(--color-ink);
-    background: var(--color-surface);
-    /* The offset shadow is what makes it read as a control on the page
-       rather than as a piece of the header rule. It was previously
-       borderless-shadows and got lost next to the nav. */
-    box-shadow: 3px 3px 0 0 var(--color-brut);
-  }
-
-  .theme-toggle__track {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    width: 66px;
-    height: 32px;
-    background: var(--color-surface-sunken);
-    transition: background-color 180ms var(--ease-out-strong);
-  }
-
-  .theme-toggle__thumb {
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 30px;
-    height: 24px;
-    background: var(--color-accent);
-    box-shadow: 2px 2px 0 0 var(--color-brut);
-    transition:
-      transform 180ms var(--ease-out-strong),
-      background-color 180ms var(--ease-out-strong);
-  }
-
-  [data-theme='dark'] .theme-toggle__thumb {
-    transform: translateX(32px);
-  }
-
-  .theme-toggle__icon {
-    position: relative;
-    display: grid;
-    place-items: center;
-    width: 33px;
-    height: 100%;
-    color: var(--color-muted);
-    transition: color 160ms var(--ease-out-strong);
-  }
-
-  .theme-toggle__icon svg {
-    width: 14px;
-    height: 14px;
-  }
-
-  /* The icon sitting under the thumb is the one that reads as active. */
-  html:not([data-theme='dark']) .theme-toggle__icon--sun,
-  html[data-theme='dark'] .theme-toggle__icon--moon {
-    color: var(--color-on-accent);
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    .theme-toggle:hover {
-      box-shadow: 3px 3px 0 0 var(--color-brut);
-      transform: translate(-1px, -1px);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .theme-toggle__thumb,
-    .theme-toggle__track {
-      transition: none;
-    }
-  }
-
   /* ── Form controls ─────────────────────────────────────────────
      One shape for every input, select and textarea, so a control sits in
      the language rather than floating above it. */
@@ -625,6 +461,53 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--color-ink);
+  }
+
+  .game-clock-display {
+    display: inline-flex;
+    max-width: 100%;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--color-line-strong);
+    background: var(--color-flap-bg);
+    padding: 4px 6px;
+    transition: border-color 140ms var(--ease-out-strong);
+  }
+
+  .game-clock-display--active {
+    border-color: var(--color-accent);
+  }
+
+  .game-clock-display--urgent {
+    border-color: var(--color-flap-alert);
+  }
+
+  .game-clock-display__face {
+    --split-flap-gap: 0.11em;
+    max-width: 100%;
+  }
+
+  .captured-piece {
+    display: inline-flex;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+  }
+
+  .captured-piece svg {
+    width: 100%;
+    height: 100%;
+  }
+
+  .captured-piece--black {
+    background: #fbf7f1;
+  }
+
+  .captured-piece--white {
+    background: #171513;
   }
 
   /* ── Split-flap game clock ───────────────────────────────────
@@ -700,6 +583,7 @@
    makes a tap feel broken on a phone. */
 @layer components {
   .board-shell {
+    position: relative;
     touch-action: manipulation;
     -webkit-touch-callout: none;
     -webkit-user-select: none;
@@ -710,6 +594,31 @@
     /* The markers are painted onto the square's own background, so a
        transparent square would show the canvas through the dot. */
     background-clip: padding-box;
+  }
+
+  .play-board-effects {
+    position: absolute;
+    z-index: 10;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .play-board-loss-ripple {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+  }
+
+  .play-board-loss-ripple::before {
+    width: 74%;
+    aspect-ratio: 1;
+    border: 3px solid rgb(160 24 24 / 65%);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgb(160 24 24 / 18%) 0 45%, transparent 72%);
+    animation: arb-loss-ripple 900ms var(--ease-out-editorial) both;
+    content: '';
   }
 
   /* ── The fallen king ─────────────────────────────────────────
@@ -791,6 +700,10 @@
       animation: none;
     }
 
+    .play-board-loss-ripple {
+      display: none;
+    }
+
     /* Confetti IS the motion. Held still it is just litter on the dialog,
        so it is removed rather than frozen. */
     .confetti {
@@ -861,21 +774,13 @@
   }
 }
 
-/* ── Switching themes ──────────────────────────────────────────
-   Unlayered on purpose: it has to beat the component transitions above,
-   and anything outside `@layer` wins over anything inside it. The
-   attribute is set by the toggle immediately before it flips
-   `data-theme`, then removed once the fade is done, so the site pays for
-   this only during the ~200ms of an actual switch. */
-@media (prefers-reduced-motion: no-preference) {
-  html[data-theme-transition] *,
-  html[data-theme-transition] *::before,
-  html[data-theme-transition] *::after {
-    transition:
-      background-color 200ms var(--ease-out-strong),
-      border-color 200ms var(--ease-out-strong),
-      color 200ms var(--ease-out-strong),
-      fill 200ms var(--ease-out-strong),
-      stroke 200ms var(--ease-out-strong);
+@keyframes arb-loss-ripple {
+  from {
+    opacity: 0.8;
+    transform: scale(0.28);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.45);
   }
 }

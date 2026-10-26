@@ -1,10 +1,8 @@
 /**
  * Move grading.
  *
- * Imports nothing, for the same reason `clock.ts` imports nothing: the rules
- * here are arithmetic on numbers the engine produced, they are the part most
- * worth testing, and a test that has to load `chess.js` through a bundler
- * alias to check a threshold is a test that will not run.
+ * The thresholds and accuracy estimates are arithmetic; sacrifice detection
+ * uses chess.js only to check the immediate capture-and-recapture sequence.
  */
 
 /** Centipawn-loss thresholds used to label a move in the review. */
@@ -15,6 +13,7 @@ export const EXCELLENT_CP = 20;
 
 export type MoveVerdict =
   | 'forced'
+  | 'brilliant'
   | 'best'
   | 'excellent'
   | 'good'
@@ -38,15 +37,57 @@ export type MoveVerdict =
  */
 export function classifyMove(
   centipawnLoss: number,
-  context: { onlyMove?: boolean; matchesBestMove?: boolean } = {},
+  context: { onlyMove?: boolean; matchesBestMove?: boolean; sacrifice?: boolean } = {},
 ): MoveVerdict {
   if (context.onlyMove) return 'forced';
+  if (context.sacrifice && centipawnLoss < EXCELLENT_CP) return 'brilliant';
   if (context.matchesBestMove) return 'best';
   if (centipawnLoss < EXCELLENT_CP) return 'excellent';
   if (centipawnLoss < INACCURACY_CP) return 'good';
   if (centipawnLoss < MISTAKE_CP) return 'inaccuracy';
   if (centipawnLoss < BLUNDER_CP) return 'mistake';
   return 'blunder';
+}
+
+const PIECE_VALUE: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9 };
+
+/**
+ * Detects a material sacrifice using only the forced capture and immediate
+ * recaptures. This intentionally avoids deeper engine lines so the label is
+ * deterministic and does not claim that every positional sacrifice is sound.
+ */
+export function detectSacrifice(fenAfter: string, opponentBestUci: string | null): boolean {
+  /* Without a concrete opponent move there is no observable material offer. */
+  if (!opponentBestUci) return false;
+
+  /* Load the exact post-move position; invalid PGN data cannot earn a label. */
+  let game: Chess;
+  try {
+    game = new Chess(fenAfter);
+  } catch {
+    return false;
+  }
+
+  const from = opponentBestUci.slice(0, 2);
+  const to = opponentBestUci.slice(2, 4);
+  const promotion = opponentBestUci[4];
+  try {
+    /* The engine's reply must actually take the offered piece. */
+    const capture = game.move({ from, to, ...(promotion ? { promotion } : {}) });
+    if (!capture.captured) return false;
+
+    /* Value only the material the opponent won on this immediate capture. */
+    const gain = PIECE_VALUE[capture.captured] ?? 0;
+    /* Count the strongest one-move recapture available to the sacrificer. */
+    let claw = 0;
+    for (const reply of game.moves({ verbose: true })) {
+      if (reply.captured) claw = Math.max(claw, PIECE_VALUE[reply.captured] ?? 0);
+    }
+    /* A minor-piece offer that remains down a minor piece is a sacrifice. */
+    return gain >= 3 && gain - claw >= 3;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -62,40 +103,4 @@ export function accuracyFromLoss(averageCentipawnLoss: number, moveCount: number
   return Math.max(0, Math.min(100, Number(blended.toFixed(1))));
 }
 
-/**
- * An approximate playing strength, from accuracy.
- *
- * This is a *description*, not a rating: it is not stored, it does not affect
- * any standings, and it says nothing about results. What it is good for is
- * turning 87.4 into something a player can hold in their head. The curve is
- * anchored on the points below and interpolated between them — accuracy is a
- * bounded score, not an Elo, so extrapolating past either end is meaningless
- * and the ends clamp instead.
- */
-const RATING_ANCHORS: readonly (readonly [number, number])[] = [
-  [0, 250],
-  [50, 500],
-  [60, 750],
-  [70, 1050],
-  [80, 1450],
-  [85, 1750],
-  [90, 2100],
-  [95, 2500],
-  [100, 2900],
-];
-
-export function ratingFromAccuracy(accuracy: number): number {
-  const score = Math.max(0, Math.min(100, accuracy));
-
-  for (let i = 0; i < RATING_ANCHORS.length - 1; i += 1) {
-    const [lowScore, lowRating] = RATING_ANCHORS[i];
-    const [highScore, highRating] = RATING_ANCHORS[i + 1];
-    if (score <= highScore) {
-      const span = highScore - lowScore;
-      const t = span === 0 ? 0 : (score - lowScore) / span;
-      return Math.round((lowRating + t * (highRating - lowRating)) / 10) * 10;
-    }
-  }
-
-  return RATING_ANCHORS[RATING_ANCHORS.length - 1][1];
-}
+import { Chess } from 'chess.js';

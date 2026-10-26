@@ -1,7 +1,5 @@
 /**
- * The single source of truth for time controls. The host picks one of
- * these ids; the server validates every game against the matching entry
- * and never trusts a duration sent from the client.
+ * The single source of truth for time controls offered by local play.
  */
 
 export type TimeControlMode = 'clock' | 'per_move' | 'none';

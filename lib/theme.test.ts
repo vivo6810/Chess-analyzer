@@ -1,22 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import vm from 'node:vm';
 
 /**
- * The design system keeps every colour in two blocks of `app/globals.css`:
- * `@theme static` for light and `[data-theme='dark']` for dark.
- *
- * That arrangement has two failure modes that are invisible in code review and
- * only show up as a broken-looking page in whichever mode the reviewer was not
- * using:
- *
- *   1. A token added to one block and forgotten in the other. The missing side
- *      silently keeps the light value, which is how you get an invisible
- *      element in dark mode.
- *   2. A token that exists in both but drifts too pale to read.
- *
- * Both are assertions here rather than things to notice by eye.
+ * The single site palette is kept contrast-safe so cards, labels, and clocks
+ * remain legible across every route.
  */
 
 const ROOT = new URL('../app/globals.css', import.meta.url);
@@ -29,7 +17,6 @@ const block = (pattern: RegExp, label: string) => {
 };
 
 const lightBlock = block(/@theme static \{([\s\S]*?)\n\}/, 'light');
-const darkBlock = block(/\[data-theme='dark'\] \{([\s\S]*?)\n\}/, 'dark');
 
 /** All declared `--color-*` names, ignoring non-colour tokens like fonts. */
 const allKeys = (source: string) =>
@@ -45,7 +32,6 @@ const hexes = (source: string) => {
 };
 
 const light = hexes(lightBlock);
-const dark = hexes(darkBlock);
 
 /* ── WCAG relative luminance and contrast ─────────────────────── */
 
@@ -72,34 +58,22 @@ const AA = 4.5;
 const AAA = 7;
 
 const PALETTES = [
-  { name: 'light', tokens: light },
-  { name: 'dark', tokens: dark },
+  { name: 'site', tokens: light },
 ] as const;
 
 /* ── Structure ────────────────────────────────────────────────── */
 
-test('both themes declare exactly the same colour tokens', () => {
-  const lightKeys = allKeys(lightBlock);
-  const darkKeys = allKeys(darkBlock);
-
-  const missingFromDark = [...lightKeys].filter((key) => !darkKeys.has(key)).sort();
-  const missingFromLight = [...darkKeys].filter((key) => !lightKeys.has(key)).sort();
-
-  assert.deepEqual(
-    missingFromDark,
-    [],
-    `these tokens have no dark value, so they keep their light one: ${missingFromDark.join(', ')}`,
-  );
-  assert.deepEqual(
-    missingFromLight,
-    [],
-    `these tokens only exist in dark mode: ${missingFromLight.join(', ')}`,
-  );
+test('the site uses one palette and has no dark-mode toggle', () => {
+  const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
+  const header = readFileSync(new URL('../components/site-header.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(css, /\[data-theme=['"]dark['"]\]/);
+  assert.doesNotMatch(layout, /themeScript|data-theme/);
+  assert.doesNotMatch(header, /ThemeToggle|Dark mode/);
 });
 
 test('every declared colour is a plain six-digit hex', () => {
   for (const { name, tokens } of PALETTES) {
-    for (const key of allKeys(name === 'light' ? lightBlock : darkBlock)) {
+    for (const key of allKeys(lightBlock)) {
       const value = tokens[key];
       assert.ok(value, `${name}: ${key} is not a hex colour (got ${value ?? 'nothing parseable'})`);
     }
@@ -131,12 +105,12 @@ test('muted captions clear AA on the canvas', () => {
   }
 });
 
-test('the solid button keeps its label readable in both modes', () => {
+test('the solid button keeps its label readable', () => {
   for (const { name, tokens } of PALETTES) {
     const ratio = contrast(tokens['--color-on-solid'], tokens['--color-solid']);
     assert.ok(
       ratio >= AAA,
-      `${name}: on-solid on solid is ${round(ratio)}:1, needs ${AAA}:1. These two tokens must always move together — if solid flips to cream in dark mode without on-solid following, every button loses its label.`,
+      `${name}: on-solid on solid is ${round(ratio)}:1, needs ${AAA}:1.`,
     );
   }
 });
@@ -160,23 +134,13 @@ test('the accent is readable in both directions', () => {
   }
 });
 
-test('inverted surfaces hand their own ink to headings', () => {
-  /* `h1..h4` are coloured globally to `--color-ink`, which wins over
-     inheritance. So on a surface that does not follow the palette, the
-     heading keeps the *page* colour: cream on the cream slab in dark mode,
-     near-black on the dark band in light mode. Both shipped, one per mode.
-
-     The fix is a selector per inverted surface, which only works if the
-     markup actually carries the class — hence the second half of this test. */
-  const rule = css.match(/\.band :is\(h1, h2, h3, h4\),[\s\S]*?\{[\s\S]*?color: inherit;[\s\S]*?\}/);
-  assert.ok(rule, 'globals.css must hand the surface ink to headings inside .band and .slab');
-
+test('the landing page is limited to the hero and notation marquee', () => {
   const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
-  assert.ok(
-    /className="band\b/.test(page),
-    'the band section must carry the `band` class, or the rule above is dead CSS',
-  );
-  assert.ok(/className="slab\b/.test(page), 'the inverted cell must carry the `slab` class');
+  assert.equal((page.match(/<section\b/g) ?? []).length, 1);
+  assert.match(page, /<NotationMarquee\s*\/>/);
+  assert.match(page, /href="\/play"/);
+  assert.match(page, /href="\/analysis"/);
+  assert.doesNotMatch(page, /className="band\b|className="slab\b/);
 });
 
 test('the glass panels separate from the band behind them', () => {
@@ -211,7 +175,7 @@ test('the glass panels separate from the band behind them', () => {
 
 test('the band stays dark, and everything on it stays readable', () => {
   /* The band is the one section that does not follow the palette: it is a
-     physical slab in both themes. These three pairs are the ones that would
+     physical slab. These three pairs are the ones that would
      silently invert if someone "fixed" it by reusing `solid` / `on-solid`. */
   for (const { name, tokens } of PALETTES) {
     assert.ok(
@@ -273,105 +237,7 @@ test('the board separates from the page behind it', () => {
    measured were deleted and the assertions with them. The square colours they
    sat on are still measured above. */
 
-/* ── The pre-paint script ─────────────────────────────────────────
-   `app/layout.tsx` inlines a short script that sets the palette before the
-   first frame is composited. It is the highest-risk code in the theme
-   system — a bug there either flashes the wrong theme on every load or
-   throws on the critical render path — and it is also completely invisible
-   to every other kind of test, since it only runs inside a browser.
-
-   So we pull the exact string out of the layout and execute it against a
-   stubbed environment. That tests the real shipped code, not a copy. */
-
-const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
-const scriptSource = layout.match(/const themeScript = `([\s\S]*?)`;/)?.[1];
-
-assert.ok(scriptSource, 'could not extract themeScript from app/layout.tsx');
-
-const runScript = ({
-  stored,
-  prefersDark,
-  storageThrows = false,
-}: {
-  stored: string | null;
-  prefersDark: boolean;
-  storageThrows?: boolean;
-}) => {
-  const attributes: Record<string, string> = {};
-  const context = {
-    localStorage: {
-      getItem: () => {
-        if (storageThrows) throw new Error('storage blocked');
-        return stored;
-      },
-    },
-    window: { matchMedia: () => ({ matches: prefersDark }) },
-    document: {
-      documentElement: {
-        setAttribute: (name: string, value: string) => {
-          attributes[name] = value;
-        },
-      },
-    },
-  };
-  vm.createContext(context);
-  new vm.Script(scriptSource).runInContext(context);
-  return attributes['data-theme'];
-};
-
-const hookSource = readFileSync(new URL('../lib/use-theme.ts', import.meta.url), 'utf8');
-
-const STORAGE_CASES = [
-  { label: 'an explicit dark choice beats a light OS', stored: 'dark', prefersDark: false, expected: 'dark' },
-  { label: 'an explicit light choice beats a dark OS', stored: 'light', prefersDark: true, expected: 'light' },
-  { label: 'no stored choice follows a dark OS', stored: null, prefersDark: true, expected: 'dark' },
-  { label: 'no stored choice follows a light OS', stored: null, prefersDark: false, expected: 'light' },
-] as const;
-
-test('the pre-paint script always sets a data-theme attribute', () => {
-  for (const { label, stored, prefersDark } of STORAGE_CASES) {
-    const result = runScript({ stored, prefersDark });
-    assert.ok(
-      result === 'light' || result === 'dark',
-      `${label}: script produced ${JSON.stringify(result)} instead of a theme. An unset attribute means the site renders in whichever palette the CSS default happens to be.`,
-    );
-  }
-});
-
-test('the pre-paint script resolves theme in the documented order', () => {
-  for (const { label, stored, prefersDark, expected } of STORAGE_CASES) {
-    assert.equal(runScript({ stored, prefersDark }), expected, label);
-  }
-});
-
-test('a blocked localStorage does not break the first paint', () => {
-  /* Safari private mode and hardened browsers throw on storage access. If
-     this is not caught inside the script, the exception escapes on the
-     critical render path and the theme attribute is never set at all. */
-  assert.equal(
-    runScript({ stored: null, prefersDark: true, storageThrows: true }),
-    'light',
-    'the script must swallow storage errors and still set a theme',
-  );
-});
-
-test('the script and the hook agree on the storage key', () => {
-  /* Two independent literals that must match forever. If they drift, the
-     toggle writes a preference the pre-paint script never reads, so the
-     choice appears to be forgotten on every reload. */
-  const key = hookSource.match(/THEME_STORAGE_KEY = '([^']+)'/)?.[1];
-  assert.ok(key, 'could not read THEME_STORAGE_KEY from lib/use-theme.ts');
-  assert.ok(
-    scriptSource.includes(`'${key}'`),
-    `lib/use-theme.ts stores under '${key}' but the inline script in app/layout.tsx reads a different key`,
-  );
-});
-
-test('the split-flap clock stays readable in both palettes', () => {
-  /* The clock is the one element that does not follow the page: it keeps dark
-     boards and bright digits in both themes, because it is a display rather
-     than a surface. That decision has to be defended numerically, or dark mode
-     quietly becomes a near-black display on a near-black page. */
+test('the split-flap clock stays readable against the site palette', () => {
   for (const { name, tokens } of PALETTES) {
     const board = tokens['--color-flap-bg'];
 
@@ -424,7 +290,7 @@ test('status badges carry readable text', () => {
       const ratio = contrast(tokens[fg], tokens[bg]);
       assert.ok(
         ratio >= AA,
-        `${name}: ${label} badge is ${round(ratio)}:1, needs ${AA}:1. In dark mode these are pastel-on-dark-transparent, which is easy to get too dim by reusing the light foreground.`,
+        `${name}: ${label} badge is ${round(ratio)}:1, needs ${AA}:1.`,
       );
     }
   }

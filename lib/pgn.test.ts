@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { PgnError, parseOneGame, parsePgn, splitPgn } from './pgn.ts';
+import { PgnError, parseOneGame, parsePgn, renderPgn, splitPgn } from './pgn.ts';
 
 const TWO_GAMES = `[Event "One"]
 [White "Alpha"]
@@ -109,4 +109,26 @@ test('multi-game blobs refuse with the offending game indexed', () => {
     () => parsePgn(`${TWO_GAMES}\n\n[Event "Three"]\n[Result "1-0"]\n\n1. e4 Qh4?? 1-0`),
     (error: unknown) => error instanceof PgnError && /Game 3/.test(error.message),
   );
+});
+
+test('clock-bearing PGN exports round-trip SAN and remaining time', () => {
+  const rendered = renderPgn(
+    { Event: 'Test', White: 'Alpha', Black: 'Beta', Result: '1-0', TimeControl: '300+0' },
+    [
+      { san: 'e4', clk: 178 },
+      { san: 'e5', clk: 180 },
+      { san: 'Nf3', clk: 172 },
+    ],
+    '1-0',
+  );
+  const parsed = parseOneGame(rendered);
+  assert.deepEqual(parsed.moves.map((move) => move.san), ['e4', 'e5', 'Nf3']);
+  assert.deepEqual(parsed.moves.map((move) => move.clk), [178, 180, 172]);
+  assert.match(rendered, /1\. e4 \{\[%clk 0:02:58\]\} e5 \{\[%clk 0:03:00\]\}/);
+});
+
+test('PGN export leaves out absent clock annotations', () => {
+  const rendered = renderPgn({ White: 'A', Black: 'B' }, [{ san: 'e4' }, { san: 'e5' }], '*');
+  assert.doesNotMatch(rendered, /%clk/);
+  assert.match(rendered, /1\. e4 e5 \*$/);
 });
