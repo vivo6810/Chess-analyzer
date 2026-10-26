@@ -251,9 +251,17 @@ function formatCp(cp: number): string {
 function EvalBar({ cpWhite }: { cpWhite: number }) {
   const share = Math.max(0.02, Math.min(0.98, (clampCp(cpWhite) + 500) / 1000));
   return (
-    <div className="flex h-full min-h-32 flex-col border-r-2 border-ink bg-solid" aria-label={`Evaluation ${formatCp(cpWhite)}`}>
-      <div className="bg-canvas transition-[height] duration-300 ease-out" style={{ height: `${(1 - share) * 100}%` }} aria-hidden="true" />
-      <div className="flex-1 bg-solid" aria-hidden="true" />
+    <div className="flex h-full min-h-32 flex-col border-r-2 border-ink" aria-label={`Evaluation ${formatCp(cpWhite)}`}>
+      {/* The bar is vertical: Black's share occupies the top in the brief's
+          near-black #27272A, White's share fills upward from the bottom in
+          the brief's off-white #E2E8F0. Both fill values are tokens so the
+          brief's exact colors are measured, not guessed. */}
+      <div
+        className="transition-[height] duration-300 ease-out"
+        style={{ height: `${(1 - share) * 100}%`, background: 'var(--color-eval-black)' }}
+        aria-hidden="true"
+      />
+      <div className="flex-1" style={{ background: 'var(--color-eval-white)' }} aria-hidden="true" />
       <span className="sr-only">Evaluation {formatCp(cpWhite)}</span>
     </div>
   );
@@ -323,7 +331,7 @@ function AnalyticsPanel({ reviews, moves, hasClocks }: { reviews: PlyReview[]; m
             </div>
             <svg viewBox={`0 0 ${Math.max(1, moves.length - 1)} 100`} className="h-16 w-full" preserveAspectRatio="none" role="img" aria-label="Clock remaining graph">
               <polyline points={clockLines('w')} fill="none" stroke="var(--color-ink)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
-              <polyline points={clockLines('b')} fill="none" stroke="var(--color-accent)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+              <polyline points={clockLines('b')} fill="none" stroke="var(--color-accent-2)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
             </svg>
             <p className="mt-1 text-[11px] text-muted">Approximate time per move · White {formatSeconds(averageTime('w'))} · Black {formatSeconds(averageTime('b'))}</p>
           </>

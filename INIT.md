@@ -56,12 +56,12 @@ This record consolidates the user's requests across the conversation so future
 work preserves the full product and UX context instead of treating the latest
 message as a standalone change.
 
-**Current palette request (latest): Option B — Grandmaster Slate.** The site
-previously applied Option C (Tournament Club); that is what the current code
-still implements. The user has now asked that the handoff record be updated to
-say Option B is the desired palette. Record this as the next visual direction;
-do not claim Option B is already implemented until the CSS tokens and visible
-surfaces have actually been changed and verified.
+**Current palette (implemented 2026-10-26): Option B — Grandmaster Slate.**
+The values below are applied in `app/globals.css`'s `@theme static` block and
+pinned by the exact-value assertions in `lib/theme.test.ts` (canvas, surface,
+accent, both board squares, and both evaluation-bar fills). The earlier
+Option C (Tournament Club) warm palette has been fully retired from the tokens.
+The brief is kept here verbatim so the values' provenance is auditable.
 
 Option B values from the user's palette brief:
 
@@ -76,10 +76,19 @@ Option B values from the user's palette brief:
 | Primary accent | `#38BDF8` — Electric Sky |
 | Secondary accent | `#818CF8` — Soft Indigo |
 
+- `--color-last-move` `#EAB308` — the translucent gold wash painted on the
+  squares the last move touched (`color-mix` with transparency at the point of
+  use, so every token stays a plain six-digit hex).
+- `--color-eval-white` `#E2E8F0` / `--color-eval-black` `#27272A` — the exact
+  evaluation-bar fills the brief supplied; both the replay's vertical review
+  bar and the engine panel's horizontal bar use them.
+- `--color-accent-2` `#818CF8` (Soft Indigo) — selection/destination markers
+  and the black-sided clock-graph series.
 The user also supplied two dark-mode board choices: a slate/ash board with
 light squares `#94A3B8` or `#B0B3B8`, dark squares `#334155` or `#47494D`, and
 a translucent gold last-move highlight; or the warmer tournament alternative
-with light `#D8D9C5` and dark `#4E6E58`. The pasted CSS example was explicitly
+with light `#D8D9C5` and dark `#4E6E58`. The slate/ash variant with `#B0B3B8` /
+`#47494D` was chosen and is what ships. The pasted CSS example was explicitly
 Option A, so it is not the requested Option B implementation. Move-quality
 colors from the same brief are brilliant cyan `#26C6DA`, great/critical steel
 blue `#5C8BB0`, best emerald `#66BB6A`, book bronze `#A88865`, inaccuracy amber
@@ -190,7 +199,7 @@ Delete the middle ink band (bento cards 01–05) and the bottom "How it works"
 step cards section, completely.
 
 **Cookie storage (final).** All "user data" = cookies, no `localStorage` for
-this. The interface uses one dark Tournament Club palette with no theme toggle:
+this. The interface uses one dark Grandmaster Slate palette with no theme toggle:
 - `arbiter:profiles` — JSON array of `{ username: string; name?: string; ts: number }`, 8 max.
 - `arbiter:analyses` — JSON array of `{ id: string; source: 'chesscom'|'pgn'|'play'; white: string; black: string; result: string; played?: string; profile?: string; stored: boolean; ts: number }`, 12 max, newest first, deduped by `id`.
 - `arbiter:g:<id>` — the compact PGN text of one analyzed game so it can be reopened from history. **One cookie per game, each under 3,500 bytes** (cookie budget); do not store if longer.
@@ -284,9 +293,10 @@ reviewer (and the user) reads diffs against them.
    `app/globals.css` (`bg-canvas`, `text-ink`, `border-line`, `bg-surface`,
    `bg-accent`, `text-on-accent`, `bg-bone`, `shadow-brut`, `badge`,
    `press`, `field`, `field-label`, `board-shell`). Use them; do not invent
-   one-off colors. The app uses one dark Tournament Club palette with no theme
-   toggle: warm charcoal surfaces, ivory text, tournament-green actions, and a
-   muted green board with amber move hints.
+   one-off colors. The app uses one dark Grandmaster Slate palette with no
+   theme toggle: midnight-navy surfaces, ice-white text, an electric-sky
+   accent with a soft-indigo secondary, and a slate/ash board with a
+   translucent gold last-move wash.
 6. **Accessibility is not negotiable:** buttons have labels, interactive cards
    are `<button>`, dialogs have `role="dialog"` + label, keyboard flows
    (arrow-key stepping exists in `game-replay.tsx` — keep it).
@@ -947,9 +957,10 @@ User-reported follow-ups (implemented after the user authorized the fixes):
 1. **Dedicated game analysis page — implemented**: selecting a Chess.com
    recent game opens its own `/analysis/[id]` page with that game's replay
    and analysis only.
-2. **Tournament Club palette — implemented**: the site uses warm charcoal
-   surfaces, ivory text, green actions, a muted tournament-green board, and
-   semantic move-review colors. There is no theme toggle.
+2. **Tournament Club palette — implemented, then fully retired (2026-10-26)**:
+   it shipped warm charcoal surfaces, ivory text, green actions and a muted
+   green board, and carried the semantic move-review colors into the next
+   palette. The user has since chosen Option B; see item 9 and item 12.
 3. **Recent Chess.com games cutoff — implemented**:
    recent games were omitted because the proxy applied its limit before
    selecting newest archive entries. The route now traverses monthly archive
@@ -975,11 +986,9 @@ User-reported follow-ups (implemented after the user authorized the fixes):
    use chess.js legal-move rules. On a win, confetti celebrates over the board.
    On a loss, the losing king falls right and a translucent red ripple crosses
    the board. Reduced-motion preferences disable the moving overlays.
-9. **Tournament Club palette — implemented, superseded by a newer palette
-   request**: warm charcoal surfaces, ivory text, tournament-green actions and
-   board, amber legal-move hints, and semantic review colors remain in the
-   current CSS. The user has since requested Option B (Grandmaster Slate) as
-   the desired palette; implementing that visual switch is still pending.
+9. **Tournament Club palette — implemented, superseded by Option B**: the
+   warm surfaces, ivory text and green board were the previous selection and
+   are no longer in the tokens. See item 12.
 10. **Profile report metrics and range — implemented (2026-10-26)**: the
     profile page accepts a positive game count or `all`, loads newest Chess.com
     archives until that count is met, and reports average game rating, each
@@ -989,11 +998,18 @@ User-reported follow-ups (implemented after the user authorized the fixes):
 11. **Visible-copy cleanup — implemented (2026-10-26)**: removed the landing
     page browser tagline, the footer account/storage blurb, the hero board's
     default move prompt, and the obsolete profile hint about a 20-game cap.
-12. **Option B palette direction — documented (2026-10-26)**: the user changed
-    the desired palette from the previously selected Option C to Option B,
-    Grandmaster Slate. Values and the supplied board/verdict/evaluation
-    guidance are recorded in §1. Do not mark the palette switch implemented
-    until the app is updated and validated.
+12. **Option B palette — implemented (2026-10-26)**: the user changed the
+    desired palette from the previously selected Option C to Option B,
+    Grandmaster Slate, and the switch has now been applied and verified. The
+    exact values from §1 live in `app/globals.css`'s `@theme static` block;
+    the slate/ash board (`#B0B3B8` / `#47494D`), the translucent gold
+    last-move wash (`--color-last-move`, mixed at the point of use), the
+    brief's evaluation-bar fills (`--color-eval-white` `#E2E8F0`,
+    `--color-eval-black` `#27272A`) and the soft-indigo secondary accent
+    (`--color-accent-2` `#818CF8`, used for selection markers and the clock
+    graph's black series) are all in place. `lib/theme.test.ts` pins the
+    surface, accent, board and eval-bar hex values so the palette cannot
+    drift silently; the full suite, typecheck and production build pass.
 
 Previously listed ideas:
 

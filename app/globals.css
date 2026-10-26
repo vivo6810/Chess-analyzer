@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /* ────────────────────────────────────────────────────────────────
-   Arbiter — Tournament Club palette
+   Arbiter — Grandmaster Slate palette (Option B)
 
    A neobrutalist system, not a garnish. Three rules, and every
    surface in the app obeys them:
@@ -17,8 +17,9 @@
    a soft corner. `rounded-full` is deliberately not part of that
    scale and is only reachable by asking for it.
 
-   Warm charcoal surfaces, ivory text, tournament green actions, and a
-   muted green chessboard keep the interface familiar without glare.
+   Midnight-navy surfaces, ice-white text, an electric-sky accent, and a
+   slate/ash chessboard keep the interface calm in a dark room, with a
+   translucent gold wash on the squares the last move touched.
    `lib/theme.test.ts` checks the palette's text and surface contrast.
 
    `@theme static` rather than plain `@theme` because
@@ -38,48 +39,60 @@
   --radius-3xl: 0px;
   --radius-4xl: 0px;
 
-  /* Warm charcoal surfaces and structural dividers. */
-  --color-canvas: #161512;
-  --color-bone: #2e2b27;
-  --color-surface: #211f1c;
-  --color-surface-sunken: #100f0d;
-  --color-line: #38342f;
-  --color-line-strong: #625d54;
+  /* Midnight-navy page, dark-slate panels, steel hover rows, and the
+     muted slate line from the Grandmaster Slate brief. */
+  --color-canvas: #0b0f17;
+  --color-bone: #1e293b;
+  --color-surface: #151c28;
+  --color-surface-sunken: #070b14;
+  --color-line: #283548;
+  --color-line-strong: #475569;
 
-  /* Ivory foregrounds and readable warm-stone captions. */
-  --color-muted: #9e978e;
-  --color-ink-soft: #eae6df;
-  --color-ink: #eae6df;
-  --color-brut: #38342f;
+  /* Ice-white foregrounds and cool-gray captions. The offset shadow is
+     the slate line value lifted onto the page — visible, not loud. */
+  --color-muted: #94a3b8;
+  --color-ink-soft: #f8fafc;
+  --color-ink: #f8fafc;
+  --color-brut: #283548;
 
-  /* Dark neutral controls and green primary actions. */
-  --color-solid: #2e2b27;
-  --color-on-solid: #eae6df;
-  --color-accent: #629924;
-  --color-on-accent: #161512;
+  /* Steel-blue controls, the electric-sky primary action, and the
+     soft-indigo secondary accent from the brief. */
+  --color-solid: #1e293b;
+  --color-on-solid: #f8fafc;
+  --color-accent: #38bdf8;
+  --color-accent-2: #818cf8;
+  --color-on-accent: #0b0f17;
 
-  /* The optional ink band stays distinct from the charcoal page. */
-  --color-band: #100f0d;
-  --color-band-fg: #eae6df;
-  --color-band-slab: #eae6df;
-  --color-band-slab-ink: #161512;
+  /* The optional ink band sinks below the midnight page. */
+  --color-band: #070b14;
+  --color-band-fg: #f8fafc;
+  --color-band-slab: #f8fafc;
+  --color-band-slab-ink: #0b0f17;
 
   /* Dark status surfaces with bright, legible semantic labels. */
-  --color-win-bg: #26331d;
-  --color-win-fg: #a8d66d;
-  --color-loss-bg: #3b2220;
-  --color-loss-fg: #ff9388;
-  --color-draw-bg: #382f1b;
-  --color-draw-fg: #efc66a;
-  --color-info-bg: #183039;
+  --color-win-bg: #132a1f;
+  --color-win-fg: #4ade80;
+  --color-loss-bg: #2b1420;
+  --color-loss-fg: #f87171;
+  --color-draw-bg: #2a2113;
+  --color-draw-fg: #fbbf24;
+  --color-info-bg: #12293e;
   --color-info-fg: #7dd3fc;
 
-  /* Tournament green board and amber move destinations. */
-  --color-board-light: #d8d9c5;
-  --color-board-dark: #4e6e58;
-  --color-move-hint: #d99b26;
+  /* The slate/ash board from the palette brief, the translucent gold
+     last-move wash, and the soft-indigo selection markers. The gold is
+     mixed with transparency where it is used, not stored with alpha —
+     every token here stays a plain six-digit hex. */
+  --color-board-light: #b0b3b8;
+  --color-board-dark: #47494d;
+  --color-move-hint: #818cf8;
+  --color-last-move: #eab308;
 
-  /* Move-review semantics use the supplied Tournament Club colors. */
+  /* Evaluation bar fills, verbatim from the brief. */
+  --color-eval-white: #e2e8f0;
+  --color-eval-black: #27272a;
+
+  /* Move-review semantics use the exact colors from the palette brief. */
   --color-move-brilliant: #26c6da;
   --color-move-critical: #5c8bb0;
   --color-move-best: #66bb6a;
@@ -88,11 +101,11 @@
   --color-move-mistake: #fb8c00;
   --color-move-blunder: #e53935;
 
-  /* Split-flap clock: an inset espresso display with warm ivory digits. */
-  --color-flap-bg: #2e2b27;
-  --color-flap-fg: #eae6df;
-  --color-flap-idle: #9e978e;
-  --color-flap-alert: #ff6b6b;
+  /* Split-flap clock: an inset steel display with ice digits. */
+  --color-flap-bg: #1e293b;
+  --color-flap-fg: #f8fafc;
+  --color-flap-idle: #94a3b8;
+  --color-flap-alert: #f87171;
 
   /* Type. Two faces, not three: Geist carries interface and body copy,
      Geist Mono handles notation, numbers and clocks, where digit widths

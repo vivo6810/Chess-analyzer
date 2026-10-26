@@ -90,10 +90,12 @@ export default function EnginePanel({ fen, depth = 12, autoStart = false }: Prop
               </span>
             </div>
 
-            <div className="mt-3 flex h-1.5 overflow-hidden rounded-none bg-solid">
+            {/* Same fills as the review bar: White fills from the left in
+                off-white, Black's remainder holds near-black. */}
+            <div className="mt-3 flex h-1.5 overflow-hidden rounded-none" style={{ background: 'var(--color-eval-black)' }}>
               <div
-                className="bg-canvas transition-[width] duration-200 ease-out"
-                style={{ width: `${whiteShare * 100}%` }}
+                className="transition-[width] duration-200 ease-out"
+                style={{ width: `${whiteShare * 100}%`, background: 'var(--color-eval-white)' }}
               />
             </div>
             <div className="mt-1.5 flex justify-between font-mono text-[10px] text-muted">

@@ -238,13 +238,40 @@ list. The current UI and delivery status is recorded below.
 - **Screenshot copy cleanup — implemented (2026-10-26):** removed the promotional browser
   tagline, the default move prompt, the footer blurb, and the old 20-game
   report hint.
-- **Latest palette preference — documented (2026-10-26):** the user changed
-  the requested direction from Option C (Tournament Club, currently in code)
-  to Option B (Grandmaster Slate). Its full palette values and supplied board,
-  evaluation-bar, verdict-color, and badge/icon guidance are recorded in
-  `INIT.md`. This is a documentation update only; Option B has not yet been
-  applied to the application.
+- **Latest palette preference — implemented (2026-10-26):** the user's choice
+  of Option B (Grandmaster Slate) is now applied; see the section below.
 - **Validation after these updates:** `npm test` (104 passing), `npm run
   typecheck`, `npm run build`, and `git diff --check` all pass. The refreshed
   `/profile` preview renders the game-count field and is available at
   `http://127.0.0.1:3001`.
+
+## Grandmaster Slate palette (2026-10-26)
+
+The site's single palette switched from the retired Option C (Tournament Club)
+to the user's Option B (Grandmaster Slate). All interface color still routes
+through the `@theme static` tokens in `app/globals.css`; no component hard-codes
+a surface color.
+
+- Surfaces: canvas `#0B0F17` midnight navy, panels `#151C28` dark slate,
+  hover/active rows `#1E293B` steel, borders `#283548` muted slate line, offset
+  shadows `#283548` (visible, per the `--color-brut` contrast test).
+- Text: primary `#F8FAFC` ice, captions `#94A3B8` cool gray.
+- Accent: `#38BDF8` electric sky (primary) and a new `--color-accent-2`
+  `#818CF8` soft indigo, used for square-selection markers and the clock
+  graph's black series.
+- Board: slate/ash light `#B0B3B8` / dark `#47494D`, with the brief's
+  translucent gold last-move wash via the new `--color-last-move` `#EAB308`
+  token mixed with transparency where it is applied.
+- Evaluation bars (replay's vertical bar and the engine panel's horizontal
+  bar) now use the brief's exact fills: `--color-eval-white` `#E2E8F0` for the
+  White share, `--color-eval-black` `#27272A` for the Black share. Verdict
+  colors were already the brief's values and are unchanged.
+- Status fills (win/loss/draw/info), split-flap clock tile and the play-page
+  confetti family were re-derived for navy, each keeping its existing
+  `lib/theme.test.ts` contrast floor.
+- `lib/theme.test.ts` now pins the exact brief hexes for canvas, panel,
+  accent, both board squares and both eval-bar fills, so a silent drift back
+  to the warm palette would fail the suite.
+
+Verified: `npm test` 104/104, `npm run typecheck` clean, `npm run build`
+succeeds (all routes prerender/serve dynamically as before).

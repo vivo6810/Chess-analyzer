@@ -63,17 +63,22 @@ const PALETTES = [
 
 /* ── Structure ────────────────────────────────────────────────── */
 
-test('the site uses the Tournament Club palette without a theme toggle', () => {
+test('the site uses the Grandmaster Slate palette without a theme toggle', () => {
   const layout = readFileSync(new URL('../app/layout.tsx', import.meta.url), 'utf8');
   const header = readFileSync(new URL('../components/site-header.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(css, /\[data-theme=['"]dark['"]\]/);
   assert.doesNotMatch(layout, /themeScript|data-theme/);
   assert.doesNotMatch(header, /ThemeToggle|Dark mode/);
-  assert.equal(palette['--color-canvas'], '#161512');
-  assert.equal(palette['--color-surface'], '#211f1c');
-  assert.equal(palette['--color-accent'], '#629924');
-  assert.equal(palette['--color-board-light'], '#d8d9c5');
-  assert.equal(palette['--color-board-dark'], '#4e6e58');
+  /* The exact values the user supplied for Option B in INIT.md §1 — pinned
+     so a later token edit cannot drift back toward the retired warm palette
+     without a deliberate, reviewed change. */
+  assert.equal(palette['--color-canvas'], '#0b0f17');
+  assert.equal(palette['--color-surface'], '#151c28');
+  assert.equal(palette['--color-accent'], '#38bdf8');
+  assert.equal(palette['--color-board-light'], '#b0b3b8');
+  assert.equal(palette['--color-board-dark'], '#47494d');
+  assert.equal(palette['--color-eval-white'], '#e2e8f0');
+  assert.equal(palette['--color-eval-black'], '#27272a');
 });
 
 test('every declared colour is a plain six-digit hex', () => {
@@ -87,7 +92,7 @@ test('every declared colour is a plain six-digit hex', () => {
 
 /* ── Contrast ─────────────────────────────────────────────────── */
 
-test('ivory body copy clears AAA on the canvas', () => {
+test('ice body copy clears AAA on the canvas', () => {
   for (const { name, tokens } of PALETTES) {
     assert.ok(
       contrast(tokens['--color-ink'], tokens['--color-canvas']) >= AAA,
@@ -211,7 +216,7 @@ test('cards and borders separate from the surface they sit on', () => {
   }
 });
 
-test('the tournament-green squares are far enough apart to read as a board', () => {
+test('the slate squares are far enough apart to read as a board', () => {
   for (const { name, tokens } of PALETTES) {
     const ratio = contrast(tokens['--color-board-light'], tokens['--color-board-dark']);
     assert.ok(

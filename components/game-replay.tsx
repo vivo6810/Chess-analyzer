@@ -233,7 +233,12 @@ export default function GameReplay({
       const last = ply > 0 ? moves[ply - 1] : null;
       if (last?.uci && last.uci.length >= 4) {
         for (const square of [last.uci.slice(0, 2), last.uci.slice(2, 4)]) {
-          paint(square, { boxShadow: 'inset 0 0 0 3px var(--color-line-strong)' });
+          /* The palette brief asks for a translucent gold wash on the squares
+             the last move touched, not just a ring — visible on both slate
+             surface tones. It mixes at use time so the token stays plain hex. */
+          paint(square, {
+            backgroundColor: 'color-mix(in srgb, var(--color-last-move) 40%, transparent)',
+          });
         }
       }
     }

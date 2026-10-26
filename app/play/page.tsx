@@ -25,7 +25,9 @@ const RING: CSSProperties = { backgroundImage: 'radial-gradient(circle at 50% 50
 const CONFETTI = Array.from({ length: 32 }, (_, index) => ({
   left: `${(index * 37 + 11) % 100}%`,
   delay: `${(index % 9) * -0.17}s`,
-  color: ['#629924', '#d99b26', '#eae6df', '#ff6b6b', '#a88865'][index % 5],
+  /* Grandmaster Slate confetti: sky, indigo, ice, amber, red — the accent
+     family, not the old green/amber tournament mix. */
+  color: ['#38bdf8', '#818cf8', '#f8fafc', '#fbbf24', '#f87171'][index % 5],
 }));
 
 function freshClock(control: TimeControl, now: number): ClockFields {
