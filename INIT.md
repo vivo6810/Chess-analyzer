@@ -400,8 +400,6 @@ Grading no longer uses centipawn-loss thresholds. Two pure pieces carry it:
    published cutoffs (`EP_CUTOFFS`: excellent 0.02, good 0.05, inaccuracy
    0.10, mistake 0.20, blunder beyond) and these special rules in precedence
    order:
-   - `forced` — `onlyMove` (checked first; the pre-position best line may be
-     unavailable there).
    - `brilliant` — `sacrifice` && loss ≤ good && EP after ≥ 0.40 (not left
      struggling) && EP before ≤ 0.85 (not already crushing).
    - `great` — loss ≤ excellent && the move swings across the equal band
@@ -425,10 +423,12 @@ copy; centipawn loss survives only in the move-list loss column and the
 profile's per-mode cp-loss summaries.
 Callers must supply the mover's rating when known (GameReview passes
 `whiteRating`/`blackRating`; the profile pass reads `remote.white/black.rating`)
-and SAN prefixes for the book rule. `MoveVerdict` is the eleven-string union:
-`forced | brilliant | great | book | best | excellent | good | inaccuracy |
-mistake | miss | blunder` — any `Record<MoveVerdict, …>` map must carry all
-keys; MATRIX_VERDICTS (matrix/tally/badges) covers the ten graded ones.
+and SAN prefixes for the book rule. `MoveVerdict` is exactly Chess.com's
+ten-classification vocabulary — `brilliant | great | book | best | excellent |
+good | inaccuracy | mistake | miss | blunder` — with **no `forced` verdict**:
+the only legal move grades on its own quality like any other move, matching
+Game Review's published list. Any `Record<MoveVerdict, …>` map must carry all
+keys; MATRIX_VERDICTS (matrix/tally/badges) lists all ten.
 Tests pin the cutoff table, the rating steepness, every special rule and the
 book prefix matcher.
 

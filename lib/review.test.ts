@@ -43,8 +43,12 @@ test('expected-points losses map onto the published cutoff table', () => {
   assert.equal(classifyMove(0.9, 0.8790), 'good');
 });
 
-test('forced outranks best, brilliant and big swings', () => {
-  assert.equal(classifyMove(0.9, 0.4, { onlyMove: true, sacrifice: true, matchesBestMove: true }), 'forced');
+test('the only legal move grades on its own quality — no forced badge', () => {
+  /* dropping out of a won position with the only move is a miss like any
+     other move, because chess.com's vocabulary has no forced classification */
+  assert.equal(classifyMove(0.9, 0.4, { sacrifice: true }), 'miss');
+  /* a single legal move that loses ground grades by its loss band */
+  assert.equal(classifyMove(0.65, 0.52, {}), 'mistake');
 });
 
 test('brilliant needs a good sacrifice that is not already decided', () => {

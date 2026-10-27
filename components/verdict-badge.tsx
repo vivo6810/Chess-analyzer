@@ -6,10 +6,9 @@ import type { MoveVerdict } from '@/lib/review';
  * so small glyphs read as stamped rather than drawn.
  *
  * The engine's vocabulary (lib/review.ts, the expected-points model) is the
- * spine, not any design word list: brilliant / great / book / best /
- * excellent / good / inaccuracy / mistake / miss / blunder / forced, each
- * with the closest glyph (!!, !, ★, ✓, the book, ?!, ?, ✗) and its colour
- * token.
+ * spine, and it is exactly Chess.com's: brilliant / great / book / best /
+ * excellent / good / inaccuracy / mistake / miss / blunder, each with the
+ * closest glyph (!!, !, ★, ✓, the book, ?!, ?, ✗) and its colour token.
  */
 
 /* Colour the circle internally via `currentColor`; consumers set it with the
@@ -25,7 +24,6 @@ export const VERDICT_COLOR: Record<MoveVerdict, string> = {
   mistake: 'var(--color-move-mistake)',
   miss: 'var(--color-move-miss)',
   blunder: 'var(--color-move-blunder)',
-  forced: 'var(--color-line-strong)',
 };
 
 export const VERDICT_LABEL: Record<MoveVerdict, string> = {
@@ -39,7 +37,6 @@ export const VERDICT_LABEL: Record<MoveVerdict, string> = {
   mistake: 'mistake',
   miss: 'miss',
   blunder: 'blunder',
-  forced: 'forced',
 };
 
 /* Cutout geometry per verdict, on a 24×24 grid. The check and cross glyphs
@@ -77,10 +74,6 @@ const CUTOUT: Record<MoveVerdict, string[]> = {
   blunder: [
     'M8.4 14.0V13.5C8.4 12.5 9.0 12.0 9.6 11.5C10.2 11.0 10.6 10.6 10.6 9.9C10.6 9.1 10.0 8.5 9.1 8.5C8.4 8.5 7.8 9.0 7.5 9.8L6.0 9.2C6.4 7.8 7.6 7.0 9.4 7.0C11.3 7.0 12.6 8.0 12.6 9.8C12.6 10.9 12.0 11.7 11.2 12.3C10.5 12.7 10.2 13.1 10.2 14.0H8.6ZM9.4 17.4C8.7 17.4 8.2 16.9 8.2 16.2C8.2 15.5 8.7 15.0 9.4 15.0C10.1 15.0 10.6 15.5 10.6 16.2C10.6 16.9 10.1 17.4 9.4 17.4Z',
     'M14.4 14.0V13.5C14.4 12.5 15.0 12.0 15.6 11.5C16.2 11.0 16.6 10.6 16.6 9.9C16.6 9.1 16.0 8.5 15.1 8.5C14.2 8.5 13.6 9.0 13.3 9.8L11.8 9.2C12.2 7.8 13.4 7.0 15.2 7.0C17.1 7.0 18.4 8.0 18.4 9.8C18.4 10.9 17.8 11.7 17.0 12.3C16.3 12.7 16.0 13.1 16.0 14.0H14.4ZM15.2 17.4C14.5 17.4 14.0 16.9 14.0 16.2C14.0 15.5 14.5 15.0 15.2 15.0C15.9 15.0 16.4 15.5 16.4 16.2C16.4 16.9 15.9 17.4 15.2 17.4Z',
-  ],
-  /* Forced moves get the dash: no alternative existed to grade. */
-  forced: [
-    'M7.5 10.75H16.5C17.05 10.75 17.5 11.2 17.5 11.75V12.25C17.5 12.8 17.05 13.25 16.5 13.25H7.5C6.95 13.25 6.5 12.8 6.5 12.25V11.75C6.5 11.2 6.95 10.75 7.5 10.75Z',
   ],
 };
 

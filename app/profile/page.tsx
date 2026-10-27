@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 
-import { legalMoveCount } from '@/lib/game';
 import { detectSacrifice, classifyMove, expectedPoints, accuracyFromLosses, isBookMove, type MoveVerdict } from '@/lib/review';
 import { parsePgn } from '@/lib/pgn';
 import { useEngine } from '@/lib/use-engine';
@@ -40,7 +39,7 @@ type Summary = {
 };
 
 const emptySummary = (): Summary => ({
-  verdicts: { forced: 0, brilliant: 0, great: 0, book: 0, best: 0, excellent: 0, good: 0, inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
+  verdicts: { brilliant: 0, great: 0, book: 0, best: 0, excellent: 0, good: 0, inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
   phases: { w: [0, 0, 0], b: [0, 0, 0] },
   losses: {},
   modeLosses: {},
@@ -56,7 +55,6 @@ const VERDICT_TILES: MoveVerdict[] = [
   'inaccuracy', 'mistake', 'miss', 'blunder',
 ];
 const VERDICT_NAMES: Record<MoveVerdict, string> = {
-  forced: 'forced',
   brilliant: 'brilliant',
   great: 'great',
   book: 'book',
@@ -69,7 +67,6 @@ const VERDICT_NAMES: Record<MoveVerdict, string> = {
   blunder: 'blunder',
 };
 const VERDICT_COLORS: Record<MoveVerdict, string> = {
-  forced: 'bg-bone text-muted',
   brilliant: 'bg-info-bg text-info-fg',
   great: 'bg-info-bg text-info-fg',
   book: 'bg-bone text-muted',
@@ -178,7 +175,6 @@ export default function ProfilePage() {
           const expectedAfter = expectedPoints(moverCp(scores[index + 1]), moverRating);
           const loss = Math.max(0, mover === 'w' ? scores[index] - scores[index + 1] : scores[index + 1] - scores[index]);
           const verdict = classifyMove(expectedBefore, expectedAfter, {
-            onlyMove: legalMoveCount(positions[index]) === 1,
             matchesBestMove: best[index] === move.uci,
             sacrifice: detectSacrifice(positions[index + 1], best[index + 1]),
             book: isBookMove(game.moves.slice(0, index + 1).map((entry) => entry.san)),

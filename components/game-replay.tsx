@@ -95,7 +95,6 @@ const TAG_LABEL: Partial<Record<MoveVerdict, string>> = {
   mistake: 'MIST',
   miss: 'MISS',
   blunder: 'BLUND',
-  forced: '· forced ·',
 };
 
 const MOVE_FILTERS: { id: 'all' | 'brilliant' | 'best' | 'inaccuracy' | 'blunder'; label: string }[] = [
@@ -292,7 +291,7 @@ export default function GameReplay({
            quiet. Reduced-motion strips the animations (globals.css) and the
            static ring remains. */
         const verdict = moveVerdicts[ply - 1];
-        if (verdict && verdict !== 'forced' && verdict !== 'book') {
+        if (verdict && verdict !== 'book') {
           const ring = `inset 0 0 0 4px color-mix(in srgb, ${VERDICT_COLOR[verdict]} 70%, transparent)`;
           paint(
             last.uci.slice(2, 4),
@@ -633,10 +632,8 @@ export default function GameReplay({
                           <span className="flex shrink-0 items-center gap-1.5">
                             {verdict ? (
                               <span
-                                className={`text-[9px] font-bold tracking-[0.04em] uppercase ${
-                                  verdict !== 'forced' ? '' : 'text-muted'
-                                }`}
-                                style={verdict !== 'forced' ? { color: VERDICT_COLOR[verdict] } : undefined}
+                                className="text-[9px] font-bold tracking-[0.04em] uppercase"
+                                style={{ color: VERDICT_COLOR[verdict] }}
                               >
                                 {TAG_LABEL[verdict]}
                               </span>

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react';
 
-import { legalMoveCount } from '@/lib/game';
 import { openingForMoves } from '@/lib/openings';
 import {
   accuracyFromLosses,
@@ -29,7 +28,6 @@ type PlyReview = {
 };
 
 const VERDICT_BAR_STYLE: Record<MoveVerdict, string> = {
-  forced: 'bg-line-strong',
   brilliant: 'bg-move-brilliant',
   great: 'bg-move-critical',
   best: 'bg-move-best',
@@ -62,7 +60,6 @@ const MATRIX_VERDICTS: MoveVerdict[] = [
   'blunder',
 ];
 const LABEL: Record<MoveVerdict, string> = {
-  forced: 'forced',
   brilliant: 'brilliant',
   great: 'great',
   book: 'book',
@@ -163,7 +160,6 @@ export default function GameReview({
           loss,
           epLoss: Math.max(0, Math.min(1, before - after)),
           verdict: classifyMove(before, after, {
-            onlyMove: legalMoveCount(positions[index]) === 1,
             matchesBestMove: bestMoves[index] === move.uci,
             sacrifice: detectSacrifice(positions[index + 1], bestMoves[index + 1]),
             book: isBookMove(moves.slice(0, index + 1).map((entry) => entry.san)),

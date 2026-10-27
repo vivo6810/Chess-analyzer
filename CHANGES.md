@@ -511,7 +511,10 @@ remodeled onto it. The centipawn-loss ladder is gone:
   the move spent *against the position's own best line* (escaping a losing
   position costs nothing), then applies chess.com's published cutoffs
   (`EP_CUTOFFS` excellent 0.02 / good 0.05 / inaccuracy 0.10 / mistake 0.20) —
-  `MoveVerdict` gains `great`, `book` and `miss` (eleven verdicts total):
+  `MoveVerdict` gains `great`, `book` and `miss` and **drops `forced`** so the
+  vocabulary is exactly Chess.com's published ten — brilliant, great, book,
+  best, excellent, good, inaccuracy, mistake, miss, blunder; the only legal
+  move grades on its own quality like any other:
   - **great** — near-best move that swings across the equal band upward
     (losing→unclear, unclear→winning),
   - **miss** — the position was winning (EP ≥ 0.75) before the move and is
@@ -520,8 +523,8 @@ remodeled onto it. The centipawn-loss ladder is gone:
     (cap 24 plies) while the move still holds its own (loss ≤ 0.05).
   - brilliant keeps the sacrifice rule with the new "not from a bad position
     (EP after ≥ 0.40)" and "not already crushing (EP before ≤ 0.85)"
-    conditions; `forced` and the `best` rule (matches engine first choice) are
-    unchanged; precedence forced → brilliant → great → miss → book → ladder.
+    conditions; the `best` rule (matches engine first choice) is unchanged;
+    precedence brilliant → great → miss → book → ladder.
 - **Callers:** `GameReview` computes EP per position with the mover's rating
   (`whiteRating`/`blackRating` props) and SAN prefixes for book; the profile
   pass uses `remote.white/black.rating`; a per-move `isBookMove` walk replaces

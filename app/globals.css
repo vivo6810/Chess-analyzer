@@ -184,7 +184,6 @@
   .verdict-color--mistake { color: var(--color-move-mistake); }
   .verdict-color--miss { color: var(--color-move-miss); }
   .verdict-color--blunder { color: var(--color-move-blunder); }
-  .verdict-color--forced { color: var(--color-line-strong); }
 
   .verdict-pill--brilliant {
     color: var(--color-move-brilliant);
@@ -246,13 +245,6 @@
     border-color: color-mix(in srgb, var(--color-move-blunder) 32%, transparent);
   }
 
-  /* Forced has no grading colour — it is the pill-shaped neutral the old
-     `bg-bone text-muted` badge was, in verdict form. */
-  .verdict-pill--forced {
-    color: var(--color-muted);
-    background-color: var(--color-bone);
-    border-color: var(--color-line);
-  }
 }
 
 @layer base {

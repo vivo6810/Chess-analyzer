@@ -7,7 +7,10 @@
  * the same evaluation means different things to a 700- and a 2300-rated
  * player. The verdict then falls out of how much expected points the move
  * spent, with rules beyond expected points for the special verdicts
- * (brilliant sacrifice, great, book, miss and forced).
+ * (brilliant sacrifice, great, book and miss) — exactly Chess.com's
+ * Classification V2 vocabulary: brilliant, great, best, excellent, good,
+ * book, inaccuracy, mistake, miss, blunder. There is no `forced` badge; the
+ * only legal move grades on its own quality like any other move.
  */
 
 import { Chess } from 'chess.js';
@@ -31,7 +34,6 @@ const EQUAL_LO_EP = 0.35;
 const EQUAL_HI_EP = 0.65;
 
 export type MoveVerdict =
-  | 'forced'
   | 'brilliant'
   | 'great'
   | 'book'
@@ -86,8 +88,6 @@ export function isBookMove(sans: string[]): boolean {
  * Labels a move from the expected points the position entailed before and
  * after it, plus the facts expected points cannot see on their own:
  *
- *   - `forced` — the only legal move, so no decision was made. Checked first
- *     on purpose: the engine's pre-position line may simply be unavailable.
  *   - `brilliant` — a good piece sacrifice that is not played from a bad
  *     position and not from a position that was already crushing.
  *   - `great` — the move swung the game across an equal/losing or
@@ -96,12 +96,14 @@ export function isBookMove(sans: string[]): boolean {
  *     after it: the win was there to take and was not taken.
  *   - `book` — a conventional opening move, judged as book instead of by
  *     its evaluation when it holds its own.
+ *
+ * The only legal move is graded like every other move — chess.com carries
+ * no `forced` classification, so neither does this verdict set.
  */
 export function classifyMove(
   expectedBefore: number,
   expectedAfter: number,
   context: {
-    onlyMove?: boolean;
     matchesBestMove?: boolean;
     sacrifice?: boolean;
     book?: boolean;
@@ -111,7 +113,6 @@ export function classifyMove(
      that improves on a losing position costs nothing even if it is not
      the engine's top choice. */
   const loss = Math.max(0, Math.min(1, expectedBefore - expectedAfter));
-  if (context.onlyMove) return 'forced';
   if (context.sacrifice && loss <= EP_CUTOFFS.good && expectedAfter >= 0.4 && expectedBefore <= 0.85) {
     return 'brilliant';
   }
