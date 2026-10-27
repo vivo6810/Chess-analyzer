@@ -11,7 +11,8 @@ import {
 import { Chessboard, defaultPieces } from 'react-chessboard';
 
 import EnginePanel from '@/components/engine-panel';
-import GameReview, { VERDICT_STYLE } from '@/components/game-review';
+import GameReview from '@/components/game-review';
+import { VERDICT_COLOR, VerdictToken } from '@/components/verdict-badge';
 import PlayerBoardRow from '@/components/player-board-row';
 import { kingSquare, targetsFrom, type MoveTarget, type Side } from '@/lib/chess-ui';
 import { capturedPieces, materialAdvantage } from '@/lib/material';
@@ -240,6 +241,16 @@ export default function GameReplay({
             backgroundColor: 'color-mix(in srgb, var(--color-last-move) 40%, transparent)',
           });
         }
+        /* The engine's verdict for the move on the board: the arrival square
+           wears the verdict colour, so the classification is on the position
+           itself, not only in the move list. Forced is skipped — it grades
+           the absence of an alternative, not the move. */
+        const verdict = moveVerdicts[ply - 1];
+        if (verdict && verdict !== 'forced') {
+          paint(last.uci.slice(2, 4), {
+            boxShadow: `inset 0 0 0 4px color-mix(in srgb, ${VERDICT_COLOR[verdict]} 70%, transparent)`,
+          });
+        }
       }
     }
 
@@ -252,7 +263,7 @@ export default function GameReplay({
     for (const target of targets) paint(target.to, target.capture ? RING : DOT);
 
     return styles;
-  }, [exploring, fen, moves, ply, selected, targets, turn]);
+  }, [exploring, fen, moveVerdicts, moves, ply, selected, targets, turn]);
 
   const captured = useMemo(() => capturedPieces(startFen, fen), [startFen, fen]);
   const initialClockMs = useMemo(() => {
@@ -475,13 +486,9 @@ export default function GameReplay({
                       </span>
                       {move.san}
                       {moveVerdicts[index] ? (
-                        <sup
-                          className={`ml-1 align-super text-[8px] leading-none ${VERDICT_STYLE[moveVerdicts[index]]}`}
-                          aria-label={moveVerdicts[index]}
-                          title={moveVerdicts[index]}
-                        >
-                          {moveVerdicts[index]}
-                        </sup>
+                        <span className="ml-1 align-super" aria-label={moveVerdicts[index]}>
+                          <VerdictToken verdict={moveVerdicts[index]} />
+                        </span>
                       ) : null}
                       {move.clk != null ? <span className="ml-1 text-muted">{formatClockTiles(move.clk * 1000)}</span> : null}
                     </button>

@@ -337,3 +337,43 @@ The gooey pill flight was effectively invisible when switching pages:
   libraries fetched without root); the tooling was removed after
   verification. Frames captured before and after the fix are described in
   this section only; no test automation remains in the repo.
+
+## Move verdict badges (2026-10-27)
+
+The user reviewed the badge design outside the app (an eight-glyph set done in
+the same palette brief — disc tokens with the symbol cut out in the canvas
+colour, matte 12%-fill pills) and asked it integrated, wired to the *engine's*
+classifications, then committed.
+
+- **`components/verdict-badge.tsx` is the single source** for glyphs, labels
+  and colors. The engine verdict is the spine, not the design's word list:
+  brilliant→`!!`, best→`★`, excellent→`!`, good→book glyph, inaccuracy→`?!`,
+  mistake→`?`, blunder→`??`, forced→`—` (the dash; forced grades the absence
+  of an alternative, not the move). All glyph geometry lives in one hidden
+  `<svg>` sprite (`<VerdictSprite />`, rendered once in `app/layout.tsx`);
+  badges are `<use href="#arb-verdict-…">` references, so an 80-ply move
+  list does not repeat path data.
+- **Cutouts are `var(--color-canvas,#0f0f12)`**, not the design's literal
+  `#0F0F12`, so the negative space always matches the page it sits on.
+- **Colors** reuse the existing `--color-move-*` tokens (they already were
+  the brief's hexes). The tally bar changed two rows to match the pills:
+  excellent (`bg-move-critical`, the brief's "great" steel blue) and good
+  (`bg-move-book`, bronze). Brilliant/best/inaccuracy/mistake/blunder bars
+  were already correct; forced stays neutral. `VERDICT_STYLE` (the old
+  solid-fill badge map) was deleted with its last two call sites.
+- **Where they render:** the review move list uses `VerdictPill` (glyph +
+  engine label, tinted per verdict); the summary chips are pill-tinted spans
+  with the glyph and count; the replay move list uses `VerdictToken` (the
+  15px dark-ringed disc, replacing the colored-text `<sup>`).
+- **Board overlay:** the replay board's arrival square for the current move
+  wears a 4px inset ring in the verdict's color at 70%, layered over the
+  gold last-move wash; forced is skipped. `squareStyles`'s memo now depends
+  on `moveVerdicts`.
+- New CSS (`verdict-pill`, `verdict-token`, `verdict-color--*`,
+  `verdict-pill--*`) sits in its own `@layer components` block using
+  `color-mix` at use time — deliberately **outside** `@theme static`, because
+  `lib/theme.test.ts` requires every token in that block to be a plain hex.
+
+Verified: `npm test` 104/104, `npm run typecheck` clean, `npm run build`
+succeeds. Badge pixels were reviewed standalone via `artifacts/badge-preview.html`;
+the in-app rendering needs the usual browser pass (cloud VM has no automation).

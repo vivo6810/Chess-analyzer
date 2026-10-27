@@ -121,6 +121,113 @@
   --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
+/* ── Verdict badges ──────────────────────────────────────────────
+   The eight engine classifications carry the review brief's glyph set:
+   a filled disc with the symbol cut out in the canvas colour. Pills read
+   at 12–14% fill and a 28–32% border — matte, no glow — so four of them
+   side by side can't turn the move list into a traffic light. */
+@layer components {
+  .verdict-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 2px 7px 2px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    line-height: 1.5;
+    white-space: nowrap;
+  }
+
+  .verdict-pill svg,
+  .verdict-token svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .verdict-pill svg {
+    width: 13px;
+    height: 13px;
+    flex: none;
+  }
+
+  .verdict-token {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 9999px;
+    padding: 2px;
+    background: var(--color-canvas);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 50%); /* lift the disc off slate squares */
+    flex: none;
+  }
+
+  .verdict-color--brilliant { color: var(--color-move-brilliant); }
+  .verdict-color--best { color: var(--color-move-best); }
+  .verdict-color--excellent { color: var(--color-move-critical); }
+  .verdict-color--good { color: var(--color-move-book); }
+  .verdict-color--inaccuracy { color: var(--color-move-inaccuracy); }
+  .verdict-color--mistake { color: var(--color-move-mistake); }
+  .verdict-color--blunder { color: var(--color-move-blunder); }
+  .verdict-color--forced { color: var(--color-line-strong); }
+
+  .verdict-pill--brilliant {
+    color: var(--color-move-brilliant);
+    background-color: color-mix(in srgb, var(--color-move-brilliant) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-move-brilliant) 28%, transparent);
+  }
+
+  .verdict-pill--best {
+    color: var(--color-move-best);
+    background-color: color-mix(in srgb, var(--color-move-best) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-move-best) 28%, transparent);
+  }
+
+  .verdict-pill--excellent {
+    color: var(--color-move-critical);
+    background-color: color-mix(in srgb, var(--color-move-critical) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-move-critical) 32%, transparent);
+  }
+
+  .verdict-pill--good {
+    color: var(--color-move-book);
+    background-color: color-mix(in srgb, var(--color-move-book) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-move-book) 30%, transparent);
+  }
+
+  .verdict-pill--inaccuracy {
+    color: var(--color-move-inaccuracy);
+    background-color: color-mix(in srgb, var(--color-move-inaccuracy) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-move-inaccuracy) 28%, transparent);
+  }
+
+  .verdict-pill--mistake {
+    color: var(--color-move-mistake);
+    background-color: color-mix(in srgb, var(--color-move-mistake) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-move-mistake) 28%, transparent);
+  }
+
+  .verdict-pill--blunder {
+    color: var(--color-move-blunder);
+    background-color: color-mix(in srgb, var(--color-move-blunder) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-move-blunder) 32%, transparent);
+  }
+
+  /* Forced has no grading colour — it is the pill-shaped neutral the old
+     `bg-bone text-muted` badge was, in verdict form. */
+  .verdict-pill--forced {
+    color: var(--color-muted);
+    background-color: var(--color-bone);
+    border-color: var(--color-line);
+  }
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;

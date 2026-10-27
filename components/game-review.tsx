@@ -10,6 +10,7 @@ import {
   type MoveVerdict,
 } from '@/lib/review';
 import { useEngine } from '@/lib/use-engine';
+import { VerdictGlyph, VerdictPill } from '@/components/verdict-badge';
 
 export type ReviewMove = { san: string; uci: string; fen: string; clk?: number };
 type Side = 'w' | 'b';
@@ -22,22 +23,12 @@ type PlyReview = {
   cpWhite: number;
 };
 
-export const VERDICT_STYLE: Record<MoveVerdict, string> = {
-  forced: 'bg-bone text-muted',
-  brilliant: 'bg-info-bg text-info-fg',
-  best: 'bg-win-bg text-win-fg',
-  excellent: 'bg-win-bg text-win-fg',
-  good: 'bg-bone text-muted',
-  inaccuracy: 'bg-draw-bg text-draw-fg',
-  mistake: 'bg-loss-bg text-loss-fg',
-  blunder: 'bg-loss-fg text-loss-bg',
-};
 const VERDICT_BAR_STYLE: Record<MoveVerdict, string> = {
   forced: 'bg-line-strong',
   brilliant: 'bg-move-brilliant',
   best: 'bg-move-best',
-  excellent: 'bg-move-best',
-  good: 'bg-move-critical',
+  excellent: 'bg-move-critical',
+  good: 'bg-move-book',
   inaccuracy: 'bg-move-inaccuracy',
   mistake: 'bg-move-mistake',
   blunder: 'bg-move-blunder',
@@ -201,7 +192,16 @@ export default function GameReview({
               <p className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold text-ink">
                 {summaryVerdicts.flatMap((verdict) => {
                   const count = reviews.filter((review) => review.verdict === verdict).length;
-                  return count ? [<span key={verdict}>{LABEL[verdict]}: {count}</span>] : [];
+                  return count ? [
+                  <span
+                    key={verdict}
+                    className={`verdict-pill verdict-pill--${verdict}`}
+                  >
+                    <VerdictGlyph verdict={verdict} />
+                    {LABEL[verdict]}
+                    <span className="tabular-nums">{count}</span>
+                  </span>,
+                ] : [];
                 })}
               </p>
               <button
@@ -229,7 +229,7 @@ export default function GameReview({
                       <span className="font-mono text-[13px] text-ink">{review.san}</span>
                       <span className="font-mono text-[12px] text-muted tabular-nums">{formatCp(review.cpWhite)}</span>
                       <span className="font-mono text-[11px] text-muted tabular-nums">{review.loss === 0 ? '—' : `−${(review.loss / 100).toFixed(2)}`}</span>
-                      <span className={`badge ${VERDICT_STYLE[review.verdict]}`}>{LABEL[review.verdict]}</span>
+                      <VerdictPill verdict={review.verdict} />
                     </button>
                   </li>
                 ))}

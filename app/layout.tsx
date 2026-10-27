@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import SiteFooter from '@/components/site-footer';
 import SiteHeader from '@/components/site-header';
+import { VerdictSprite } from '@/components/verdict-badge';
 
 /* Two faces, each with a job. Geist carries interface and body copy;
    Geist Mono handles notation and clocks, where digit widths must not
@@ -26,6 +27,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       data-scroll-behavior="smooth"
     >
       <body>
+        <VerdictSprite />
         <SiteHeader />
         <main>{children}</main>
         <SiteFooter />
