@@ -12,6 +12,12 @@ type Props = {
   autoStart?: boolean;
 };
 
+/**
+ * The compact live engine HUD: one row of status, then the metric cells —
+ * evaluation, best move and the principal variation. The bar is a thin live
+ * strip inside the evaluation cell; the tall board-side strip is fed by the
+ * review instead, so the two never fight over one worker.
+ */
 export default function EnginePanel({ fen, depth = 12, autoStart = false }: Props) {
   const { ready, error, analyse, stop } = useEngine();
   const [running, setRunning] = useState(autoStart);
@@ -63,72 +69,58 @@ export default function EnginePanel({ fen, depth = 12, autoStart = false }: Prop
     pawns == null ? 0.5 : Math.max(0.03, Math.min(0.97, (pawns + 5) / 10));
 
   return (
-    <section className="overflow-hidden rounded-none border-2 border-line bg-surface shadow-brut">
-      <header className="flex items-center justify-between border-b-2 border-line px-5 py-3">
-        <h2 className="text-[13px] font-semibold text-ink">Engine</h2>
+    <section className="border-2 border-line bg-surface shadow-brut" aria-label="Live engine analysis">
+      <header className="flex items-center justify-between gap-2 border-b-2 border-line px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="engine-status-dot" aria-hidden="true" />
+          <h2 className="font-mono text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink">Stockfish 19</h2>
+          <span className="whitespace-nowrap font-mono text-[10px] text-muted">
+            depth {score?.depth ?? '—'}{thinking ? '…' : ''}
+          </span>
+        </div>
         <button
           type="button"
           onClick={() => setRunning((value) => !value)}
           disabled={!ready && !error}
-          className="press rounded-none border-2 border-line-strong px-3 py-1.5 text-[12px] font-medium text-ink transition-colors hover:bg-bone disabled:opacity-40"
+          className="press shrink-0 border-2 border-line-strong px-2 py-0.5 font-mono text-[10px] font-bold text-ink transition-colors hover:bg-bone disabled:opacity-40"
         >
           {error ? 'Unavailable' : running ? 'Stop' : 'Analyse'}
         </button>
       </header>
 
       {error ? (
-        <p className="px-5 py-4 text-[13px] text-muted">{error}</p>
+        <p className="px-4 py-3 text-[12px] text-muted">{error}</p>
       ) : (
-        <>
-          <div className="px-5 py-4">
-            <div className="flex items-baseline justify-between">
-              <span className="text-[11px] font-medium tracking-[0.08em] text-muted uppercase">
-                Evaluation
-              </span>
-              <span className="font-mono text-[15px] text-ink tabular-nums">
-                {score ? formatScore(score, turn) : ready ? '—' : 'loading'}
-              </span>
-            </div>
-
-            {/* Same fills as the review bar: White fills from the left in
-                off-white, Black's remainder holds near-black. */}
-            <div className="mt-3 flex h-1.5 overflow-hidden rounded-none" style={{ background: 'var(--color-eval-black)' }}>
+        <dl className="grid grid-cols-2 gap-px bg-line">
+          <div className="bg-surface px-3 py-2.5">
+            <dt className="text-[10px] font-bold tracking-[0.08em] text-muted uppercase">Evaluation</dt>
+            <dd className="mt-1 font-mono text-[15px] font-extrabold text-accent tabular-nums">
+              {score ? formatScore(score, turn) : ready ? '—' : 'boot…'}
+            </dd>
+            {/* Live thin strip: same fills as the board-side bar. */}
+            <div className="mt-2 flex h-1 overflow-hidden" style={{ background: 'var(--color-eval-black)' }}>
               <div
                 className="transition-[width] duration-200 ease-out"
                 style={{ width: `${whiteShare * 100}%`, background: 'var(--color-eval-white)' }}
               />
             </div>
-            <div className="mt-1.5 flex justify-between font-mono text-[10px] text-muted">
-              <span>white</span>
-              <span>black</span>
-            </div>
           </div>
-
-          <dl className="grid grid-cols-2 gap-px border-t-2 border-line bg-line">
-            <div className="bg-surface px-5 py-3">
-              <dt className="text-[10px] tracking-[0.08em] text-muted uppercase">Depth</dt>
-              <dd className="font-mono text-[13px] text-ink tabular-nums">
-                {score?.depth ?? 0}
-                {thinking ? '…' : ''}
-              </dd>
-            </div>
-            <div className="bg-surface px-5 py-3">
-              <dt className="text-[10px] tracking-[0.08em] text-muted uppercase">Best move</dt>
-              <dd className="font-mono text-[13px] text-ink">{score?.best ?? '—'}</dd>
-            </div>
-          </dl>
-
+          <div className="bg-surface px-3 py-2.5">
+            <dt className="text-[10px] font-bold tracking-[0.08em] text-muted uppercase">Best move</dt>
+            <dd className="mt-1 truncate font-mono text-[15px] font-extrabold text-ink">
+              {score?.best ?? '—'}
+            </dd>
+            <p className="mt-2 font-mono text-[10px] text-muted">
+              {thinking ? 'searching…' : running ? 'settled' : 'press Analyse'}
+            </p>
+          </div>
           {score?.pv?.length ? (
-            <div className="border-t-2 border-line px-5 py-3">
-              <p className="text-[10px] tracking-[0.08em] text-muted uppercase">
-                Principal variation
-              </p>
-              <p className="mt-1 truncate font-mono text-[12px] text-ink-soft">
-                {score.pv.slice(0, 8).join(' ')}
-              </p>
+            <div className="col-span-2 bg-surface px-3 py-2">
+              <dt className="text-[10px] font-bold tracking-[0.08em] text-muted uppercase">Principal variation</dt>
+              <dd className="mt-1 truncate font-mono text-[11px] text-ink-soft">{score.pv.slice(0, 10).join(' ')}</dd>
             </div>
           ) : null}
-        </>
+        </dl>
       )}
     </section>
   );

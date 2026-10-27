@@ -54,7 +54,7 @@ export default function DedicatedAnalysisPage() {
   }, [id]);
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-10">
+    <div className="mx-auto max-w-[1480px] px-4 py-5 sm:px-6 sm:py-7">
       <Link href="/analysis" className="text-[12px] font-bold text-ink underline decoration-line-strong underline-offset-4 hover:text-accent">
         ← All games
       </Link>

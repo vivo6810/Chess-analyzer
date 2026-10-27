@@ -414,3 +414,53 @@ recorded as not applicable:
 
 Verified: `npm test` 104/104, `tsc --noEmit` clean, production build succeeds.
 Animation motion itself needs the browser pass (no automation in this VM).
+
+## Analysis workstation — 3-column bento grid (2026-10-27)
+
+The user showed a wide screenshot of `/analysis` at 33% zoom: the old board +
+single stacked sidebar scrolled vertically for pages with big empty margins
+(≈950px column on a 1480px-capable screen), and the review's move-list badges
+each sat in heavy bordered boxes. The page is rebuilt as a three-column
+workstation (user-provided spec), same width ceiling on both analysis routes:
+
+- **`components/game-replay.tsx` restructured**, logic untouched: `
+  max-w-[1480px]` grid — at `xl` three columns (`board stage ≈1.3fr ·
+  moves ≈0.75fr · analytics ≈0.9fr`), at `lg` two (analytics spans below the
+  moves column), mobile stacks.
+- **Column 1 — board stage:** a vertical evaluation strip now sits against the
+  board's left edge (canvas-ringed disc-style label badge at its foot), fed by
+  the *review's* per-position scores via a new `onScoresChange` callback on
+  `GameReview`, so stepping a move updates it after a review without a second
+  engine. Player rows, the board (still capped `66dvh`), exploration banner,
+  transport (⏮◀▶⏭, ply counter, Flip board, Copy FEN, PGN export) and the
+  check/result line all stay in column 1.
+- **Column 2 — live stepping:** the engine panel is restyled into the compact
+  HUD (status dot + `STOCKFISH 19 · depth` header, Evaluation in white-relative
+  accent, Best move, PV spanning both cells, a thin live bar inside the eval
+  cell). Below it the move list is a clean two-per-row table: SAN • short
+  verdict tag (colored by the verdict tokens, abbreviated — BRIL/BEST/EXC/…)
+  • clock, rows separated by hairlines instead of boxed badges, the active ply
+  highlighted with an accent edge and kept `scrollIntoView`-centered.
+  Filter chips (`All / Brill / Best / Inacc / Blunder` with counts) hide
+  non-matching half-moves. The old split-flap clock tiles were dropped from
+  this list in favor of plain `m:ss` mono times.
+- **Column 3 — post-game analytics:** `GameReview` now renders four cards
+  instead of one long section: Full game review (button + side-by-side rating
+  columns with a White/Black edge stripe and accuracy), Evaluation advantage
+  graph with scrubber, Move verdicts (White/Black stacked tally bars + an
+  aligned matrix of White count | verdict glyph+label | Black count — the old
+  wrapped sentence replaced), and Clocks (remaining-time graph + average time
+  per move). The old `EvalBar` in the ratings strip was removed (superseded by
+  the board-side strip); the move list and "show more" summary moved out —
+  column 2 owns moves, the matrix owns the summary.
+- **Pages:** both analysis containers widened `max-w-6xl/7xl → max-w-[1480px]`
+  with trimmed vertical padding; each side column is height-capped at
+  `calc(66dvh + 13rem)` with its own scroll so the board stage and the two
+  panels bottom-align and the page should not scroll vertically on desktop.
+- Nothing about computing reviews, exploration-branch safety, or keyboard
+  stepping changed; `ReviewMove`, `ReplayProps` and `GameReview`'s callback
+  contract are additive (`onScoresChange`), so the index and `[id]` pages
+  needed no logic changes.
+
+Verified: `npm test` 104/104, `tsc --noEmit` clean, production build green.
+The three-column composition needs the browser pass at real resolutions.

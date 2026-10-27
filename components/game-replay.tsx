@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from 'react';
@@ -12,22 +13,27 @@ import { Chessboard, defaultPieces } from 'react-chessboard';
 
 import EnginePanel from '@/components/engine-panel';
 import GameReview from '@/components/game-review';
-import { VERDICT_COLOR, VerdictToken } from '@/components/verdict-badge';
+import { VERDICT_COLOR } from '@/components/verdict-badge';
 import PlayerBoardRow from '@/components/player-board-row';
 import { kingSquare, targetsFrom, type MoveTarget, type Side } from '@/lib/chess-ui';
 import { capturedPieces, materialAdvantage } from '@/lib/material';
-import { formatClockTiles } from '@/lib/time-controls';
 import type { ReviewMove } from '@/components/game-review';
 import type { MoveVerdict } from '@/lib/review';
 
 /**
- * The completed game's board.
+ * The completed game's board — the analysis workstation.
  *
  * A finished game cannot be changed and should not look like it can: the main
  * position is stepped through, not played. The one way this board moves on its
- * own is the exploration branch — clear off the recorded game, labelled "You
- * are exploring", and reading only until the player presses back to the
+ * own is the exploration branch — clear off the recorded game, labelled
+ * "You are exploring", and reading only until the player presses back to the
  * record. Nothing underneath it is written to.
+ *
+ * Layout: a fixed-ish three-column studio. Column one is the board stage
+ * (vertical evaluation, players, transport, utilities); column two is live
+ * stepping (compact engine HUD + a two-per-row move table); column three is
+ * the post-game analytics the review produces. The site header above and the
+ * page titles around it stay owned by the pages.
  */
 
 export type ReplayProps = {
@@ -66,6 +72,37 @@ function inCheck(fen: string): boolean {
 
 type Branch = { fens: string[]; index: number };
 
+/* Evaluation helpers, shared with the review's per-position scores. Both are
+   clamped to ±5 pawns so a decisive position fills the strip without the
+   scale collapsing for normal positions. */
+const clampCp = (value: number) => Math.max(-500, Math.min(500, value));
+const formatEval = (cp: number) => {
+  const pawns = cp / 100;
+  return `${pawns > 0 ? '+' : pawns < 0 ? '' : ' '}${pawns.toFixed(2)}`;
+};
+const formatClock = (clk: number) =>
+  `${Math.floor(clk / 60)}:${String(Math.round(clk % 60)).padStart(2, '0')}`;
+
+/* Short verdict tags for the move table, colored by the verdict tokens. */
+const TAG_LABEL: Partial<Record<MoveVerdict, string>> = {
+  brilliant: 'BRIL',
+  best: 'BEST',
+  excellent: 'EXC',
+  good: 'GOOD',
+  inaccuracy: 'INACC',
+  mistake: 'MIST',
+  blunder: 'BLUND',
+  forced: '· forced ·',
+};
+
+const MOVE_FILTERS: { id: 'all' | 'brilliant' | 'best' | 'inaccuracy' | 'blunder'; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'brilliant', label: 'Brill' },
+  { id: 'best', label: 'Best' },
+  { id: 'inaccuracy', label: 'Inacc' },
+  { id: 'blunder', label: 'Blunder' },
+];
+
 export default function GameReplay({
   gameId,
   startFen,
@@ -86,6 +123,9 @@ export default function GameReplay({
   const [copied, setCopied] = useState(false);
   const [exportUrl, setExportUrl] = useState<string | null>(null);
   const [moveVerdicts, setMoveVerdicts] = useState<MoveVerdict[]>([]);
+  const [reviewScores, setReviewScores] = useState<number[]>([]);
+  const [moveFilter, setMoveFilter] = useState<(typeof MOVE_FILTERS)[number]['id']>('all');
+  const activeCellRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!pgn) {
@@ -294,14 +334,44 @@ export default function GameReplay({
   const displayName = (side: Side) => side === 'w' ? white : black;
   const displayRating = (side: Side) => side === 'w' ? whiteRating : blackRating;
 
+  /* The board-side vertical evaluation strip: fed by the review's
+     per-position scores (White-relative), so stepping a move updates it the
+     moment the review has run — no second engine behind the bar. */
+  const shownCp = reviewScores[ply] ?? null;
+  const evalShare = shownCp == null ? 0.5 : (clampCp(shownCp) + 500) / 1000;
+
+  /* The active table cell follows the board, not the reader's hand. */
+  const currentPly = exploring ? -1 : ply;
+  useEffect(() => {
+    if (currentPly > 0) activeCellRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [currentPly, moveVerdicts.length, moves.length]);
+
   const buttonClass =
-    'press min-h-10 border-2 border-line-strong bg-surface px-3 py-1.5 text-[13px] font-medium text-ink hover:bg-bone disabled:opacity-40';
+    'press flex min-h-9 shrink-0 items-center border-2 border-line-strong bg-surface px-2.5 py-1 font-mono text-[11px] font-bold text-ink hover:bg-bone disabled:opacity-40 disabled:hover:bg-surface';
+
+  /* Per-move filter counts for the chips, over graded verdicts only. */
+  const filterCounts = useMemo(() => {
+    const counts = new Map<(typeof MOVE_FILTERS)[number]['id'], number>();
+    for (const filter of MOVE_FILTERS) {
+      counts.set(
+        filter.id,
+        filter.id === 'all'
+          ? moves.length
+          : moveVerdicts.filter((verdict, index) => verdict === filter.id && index < moves.length).length,
+      );
+    }
+    return counts;
+  }, [moveVerdicts, moves.length]);
 
   return (
-    <div aria-label={`Game ${gameId} replay`} className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-8">
-      <div className="min-w-0 space-y-3">
+    <div
+      aria-label={`Game ${gameId} replay`}
+      className="mx-auto grid min-w-0 max-w-[1480px] items-start gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_minmax(19rem,0.75fr)_minmax(19.5rem,0.9fr)]"
+    >
+      {/* ══ COLUMN 1 · board stage ══════════════════════════════════ */}
+      <section className="min-w-0">
         {exploring ? (
-          <div className="flex flex-wrap items-center gap-2 border-2 border-info-fg bg-info-bg px-3 py-2">
+          <div className="mb-3 flex flex-wrap items-center gap-2 border-2 border-info-fg bg-info-bg px-3 py-2">
             <span className="badge bg-info-bg text-info-fg border-0">Exploring</span>
             <p className="flex-1 text-[12px] font-medium text-info-fg">
               These moves are not part of the game — the record underneath is untouched.
@@ -318,95 +388,123 @@ export default function GameReplay({
               >
                 Forward ›
               </button>
-              <button type="button" onClick={() => seek(ply)} className="press min-h-10 border-2 border-info-fg bg-surface px-3 py-1.5 text-[13px] font-bold text-info-fg">
+              <button type="button" onClick={() => seek(ply)} className="press min-h-9 border-2 border-info-fg bg-surface px-2.5 py-1 font-mono text-[11px] font-bold text-info-fg">
                 Return to the game
               </button>
             </div>
           </div>
         ) : null}
 
-        <PlayerBoardRow
-          side={topSide}
-          name={displayName(topSide)}
-          rating={displayRating(topSide)}
-          captures={piecesFor(topSide)}
-          material={materialFor(topSide)}
-          clock={recordedClock(topSide)}
-          active={!exploring && turn === topSide}
-        />
-        <div className="board-shell relative mx-auto aspect-square w-full max-w-[min(100%,70dvh)] overflow-hidden border-2 border-line select-none">
-          <Chessboard
-            options={{
-              id: 'arbiter-replay-board',
-              position: fen,
-              boardOrientation: flip ? 'black' : 'white',
-              squareStyles,
-              onSquareClick,
-              onPieceDrop,
-              allowDragging: exploring,
-              canDragPiece: ({ piece }) => exploring && piece.pieceType.charAt(0) === turn,
-              animationDurationInMs: 180,
-              dragActivationDistance: 10,
-              showNotation: true,
-              darkSquareStyle: { backgroundColor: 'var(--color-board-dark)' },
-              lightSquareStyle: { backgroundColor: 'var(--color-board-light)' },
-            }}
-          />
-
-          {pendingPromotion ? (
-            <div className="absolute inset-0 z-20 flex items-end justify-center bg-canvas/90 p-3 backdrop-blur-sm sm:items-center">
-              <div
-                role="dialog"
-                aria-label="Choose a piece to promote to"
-                className="w-full max-w-sm border-2 border-ink bg-surface px-4 py-4 text-center shadow-brut"
-              >
-                <p className="mt-1 text-[15px] font-bold text-ink">Promote the pawn to</p>
-                <div className="mt-3 grid grid-cols-4 gap-2">
-                  {(['q', 'r', 'b', 'n'] as const).map((piece) => {
-                    const Icon = defaultPieces[`${turn}${piece.toUpperCase()}`];
-                    return (
-                      <button
-                        key={piece}
-                        type="button"
-                        onClick={() => {
-                          const move = pendingPromotion;
-                          setPendingPromotion(null);
-                          if (move) applyExplore(move.from, move.to, piece);
-                        }}
-                        aria-label={{ q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' }[piece]}
-                        className="press flex min-h-14 flex-col items-center justify-center gap-1 border-2 border-ink bg-surface p-1.5 text-ink shadow-brut-sm hover:bg-bone"
-                      >
-                        <span className="block h-8 w-8" aria-hidden="true">
-                          <Icon />
-                        </span>
-                        <span className="font-mono text-[10px] tracking-[0.1em] uppercase">{piece}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setPendingPromotion(null)}
-                  className="mt-3 w-full border-2 border-line-strong px-3 py-2 text-[12px] font-medium text-ink hover:bg-bone"
-                >
-                  Cancel
-                </button>
-              </div>
+        {/* Evaluation strip runs the full height of the board stack, so the
+            score curve is visible while stepping without hunting for the
+            engine card. */}
+        <div className="flex items-stretch gap-2.5">
+          <div
+            aria-label={
+              shownCp == null
+                ? 'Evaluation — run the review for per-move scores'
+                : `Evaluation ${formatEval(shownCp)}, White advantage up`
+            }
+            className="flex w-7 shrink-0 flex-col overflow-hidden border-2 border-line-strong bg-canvas"
+          >
+            <div
+              className="transition-[height] duration-300 ease-out"
+              style={{ height: `${(1 - evalShare) * 100}%`, background: 'var(--color-eval-black)' }}
+            />
+            <div className="relative min-h-6 flex-1" style={{ background: 'var(--color-eval-white)' }}>
+              <span className="absolute inset-x-0 bottom-0.5 text-center font-mono text-[9px] leading-none">
+                <span className="bg-canvas px-1 py-0.5 font-bold text-ink">
+                  {shownCp == null ? '—' : formatEval(shownCp)}
+                </span>
+              </span>
             </div>
-          ) : null}
-        </div>
-        <PlayerBoardRow
-          side={bottomSide}
-          name={displayName(bottomSide)}
-          rating={displayRating(bottomSide)}
-          captures={piecesFor(bottomSide)}
-          material={materialFor(bottomSide)}
-          clock={recordedClock(bottomSide)}
-          active={!exploring && turn === bottomSide}
-        />
+          </div>
 
-        {/* ── Navigation ─────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+            <PlayerBoardRow
+              side={topSide}
+              name={displayName(topSide)}
+              rating={displayRating(topSide)}
+              captures={piecesFor(topSide)}
+              material={materialFor(topSide)}
+              clock={recordedClock(topSide)}
+              active={!exploring && turn === topSide}
+            />
+            <div className="board-shell relative mx-auto aspect-square w-full max-w-[min(100%,66dvh)] overflow-hidden border-2 border-line select-none">
+              <Chessboard
+                options={{
+                  id: 'arbiter-replay-board',
+                  position: fen,
+                  boardOrientation: flip ? 'black' : 'white',
+                  squareStyles,
+                  onSquareClick,
+                  onPieceDrop,
+                  allowDragging: exploring,
+                  canDragPiece: ({ piece }) => exploring && piece.pieceType.charAt(0) === turn,
+                  animationDurationInMs: 180,
+                  dragActivationDistance: 10,
+                  showNotation: true,
+                  darkSquareStyle: { backgroundColor: 'var(--color-board-dark)' },
+                  lightSquareStyle: { backgroundColor: 'var(--color-board-light)' },
+                }}
+              />
+
+              {pendingPromotion ? (
+                <div className="absolute inset-0 z-20 flex items-end justify-center bg-canvas/90 p-3 backdrop-blur-sm sm:items-center">
+                  <div
+                    role="dialog"
+                    aria-label="Choose a piece to promote to"
+                    className="w-full max-w-sm border-2 border-ink bg-surface px-4 py-4 text-center shadow-brut"
+                  >
+                    <p className="mt-1 text-[15px] font-bold text-ink">Promote the pawn to</p>
+                    <div className="mt-3 grid grid-cols-4 gap-2">
+                      {(['q', 'r', 'b', 'n'] as const).map((piece) => {
+                        const Icon = defaultPieces[`${turn}${piece.toUpperCase()}`];
+                        return (
+                          <button
+                            key={piece}
+                            type="button"
+                            onClick={() => {
+                              const move = pendingPromotion;
+                              setPendingPromotion(null);
+                              if (move) applyExplore(move.from, move.to, piece);
+                            }}
+                            aria-label={{ q: 'Queen', r: 'Rook', b: 'Bishop', n: 'Knight' }[piece]}
+                            className="press flex min-h-14 flex-col items-center justify-center gap-1 border-2 border-ink bg-surface p-1.5 text-ink shadow-brut-sm hover:bg-bone"
+                          >
+                            <span className="block h-8 w-8" aria-hidden="true">
+                              <Icon />
+                            </span>
+                            <span className="font-mono text-[10px] tracking-[0.1em] uppercase">{piece}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPendingPromotion(null)}
+                      className="mt-3 w-full border-2 border-line-strong px-3 py-2 text-[12px] font-medium text-ink hover:bg-bone"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <PlayerBoardRow
+              side={bottomSide}
+              name={displayName(bottomSide)}
+              rating={displayRating(bottomSide)}
+              captures={piecesFor(bottomSide)}
+              material={materialFor(bottomSide)}
+              clock={recordedClock(bottomSide)}
+              active={!exploring && turn === bottomSide}
+            />
+          </div>
+        </div>
+
+        {/* ── Transport & utilities ───────────────────────────────── */}
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <button type="button" className={buttonClass} onClick={() => seek(0)} disabled={ply === 0} aria-label="First move">
             ⏮
           </button>
@@ -440,76 +538,123 @@ export default function GameReplay({
           <span className="flex-1" aria-hidden="true" />
 
           <button type="button" className={buttonClass} onClick={() => setFlip((value) => !value)} aria-pressed={flip}>
-            {flip ? 'Black' : 'White'} at the bottom
+            Flip board
           </button>
           <button type="button" className={buttonClass} onClick={() => void copyFen()}>
-            {copied ? 'Position copied' : 'Copy FEN'}
+            {copied ? 'Copied' : 'Copy FEN'}
           </button>
           {exportUrl ? (
             <a
               href={exportUrl}
               download={`${white}-vs-${black}.pgn`.replace(/[\\/:*?"<>|]/g, '-')}
-              className="press inline-flex min-h-10 items-center border-2 border-ink bg-accent px-3 py-1.5 text-[13px] font-bold text-on-accent shadow-brut-sm"
+              className="press min-h-9 border-2 border-ink bg-accent px-2.5 py-1 font-mono text-[11px] font-bold text-on-accent shadow-brut-sm"
             >
-              Export PGN
+              PGN
             </a>
           ) : null}
         </div>
 
-        <p className="flex min-h-5 items-center gap-2 text-[12px] text-muted">
-          {inCheck(fen) ? (
-            <span className="badge border-0 bg-loss-bg text-loss-fg">Check</span>
-          ) : null}
-          {!exploring && result ? <span className="font-mono text-[13px] text-ink-soft">Result {result}</span> : null}
+        <p className="mt-1.5 flex min-h-5 items-center gap-2 text-[12px] text-muted">
+          {inCheck(fen) ? <span className="badge border-0 bg-loss-bg text-loss-fg">Check</span> : null}
+          {!exploring && result ? <span className="font-mono text-[13px] text-ink-soft">{result}</span> : null}
           <span aria-hidden="true">·</span>
           <span>
-            {exploring ? 'Exploratory moves — use the keys ← → or the buttons to fold the game back.' : `Arrow keys step the game. ${moves.length} half-move${moves.length === 1 ? '' : 's'} on record.`}
+            {exploring
+              ? 'Exploratory moves — ← → steps the branch; Return folds the game back.'
+              : `Arrow keys step the game. ${moves.length} half-move${moves.length === 1 ? '' : 's'} on record.`}
           </span>
         </p>
+      </section>
 
-      </div>
+      {/* ══ COLUMN 2 · engine HUD + move table ══════════════════════ */}
+      <section className="flex min-w-0 flex-col gap-4 xl:max-h-[calc(66dvh+13rem)] xl:overflow-hidden">
+        <EnginePanel fen={fen} />
 
-      <aside className="min-w-0 space-y-4">
-        <section className="overflow-hidden border-2 border-line bg-surface shadow-brut">
-          <header className="border-b-2 border-line px-4 py-2.5 sm:px-5">
-            <h2 className="text-[13px] font-semibold text-ink">Moves</h2>
+        <section className="flex min-h-48 flex-1 flex-col border-2 border-line bg-surface shadow-brut">
+          <header className="flex items-center justify-between border-b-2 border-line px-4 py-2.5">
+            <h2 className="font-mono text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink">Moves</h2>
+            <span className="hidden font-mono text-[10px] text-muted sm:block">← → step</span>
           </header>
-          <ol className="max-h-72 overflow-y-auto px-4 py-2.5 font-mono text-[13px] sm:px-5">
+          <div className="flex flex-wrap items-center gap-1 border-b-2 border-line px-3 py-2">
+            {MOVE_FILTERS.map((filter) => {
+              const count = filterCounts.get(filter.id) ?? 0;
+              const activeFilter = moveFilter === filter.id;
+              return (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => setMoveFilter(filter.id)}
+                  aria-pressed={activeFilter}
+                  className={`press border-2 px-2 py-0.5 font-mono text-[10px] font-bold tracking-[0.04em] uppercase transition-colors ${
+                    activeFilter ? 'border-ink bg-ink text-canvas' : 'border-line text-muted hover:text-ink'
+                  }`}
+                >
+                  {filter.label}
+                  <span className={activeFilter ? 'tabular-nums' : 'tabular-nums opacity-70'}> {count}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="min-h-40 flex-1 space-y-px overflow-y-auto px-2 py-1.5 font-mono text-[12px]">
             {moves.length === 0 ? (
-              <li className="text-muted">No recorded moves.</li>
+              <p className="px-2 py-3 text-muted">No recorded moves.</p>
             ) : (
-              moves.map((move, index) => {
-                const movePly = index + 1;
-                const isCurrent = !exploring && ply === movePly;
+              Array.from({ length: Math.ceil(moves.length / 2) }, (_, row) => {
+                const plies = [row * 2 + 1, row * 2 + 2];
                 return (
-                  <li key={index} className="inline-block align-top" aria-hidden={false}>
-                    <button
-                      type="button"
-                      onClick={() => seek(movePly)}
-                      aria-current={isCurrent ? 'true' : undefined}
-                      className={`badge m-0.5 ${isCurrent ? 'bg-ink text-canvas' : 'bg-surface text-ink hover:bg-bone'}`}
-                    >
-                      <span className="text-muted tabular-nums">
-                        {Math.ceil(movePly / 2)}
-                        {movePly % 2 === 1 ? '.' : '…'}
-                      </span>
-                      {move.san}
-                      {moveVerdicts[index] ? (
-                        <span className="ml-1 align-super" aria-label={moveVerdicts[index]}>
-                          <VerdictToken verdict={moveVerdicts[index]} />
-                        </span>
-                      ) : null}
-                      {move.clk != null ? <span className="ml-1 text-muted">{formatClockTiles(move.clk * 1000)}</span> : null}
-                    </button>
-                  </li>
+                  <div key={row} className="grid grid-cols-[2rem_minmax(0,1fr)_minmax(0,1fr)] items-stretch">
+                    <span className="self-center pl-1.5 text-[11px] text-muted tabular-nums">{row + 1}.</span>
+                    {plies.map((movePly) => {
+                      const index = movePly - 1;
+                      if (index >= moves.length) return <span key={movePly} aria-hidden="true" />;
+                      const move = moves[index];
+                      const verdict = moveVerdicts[index];
+                      const isCurrent = moveFilter === 'all' && currentPly === movePly;
+                      const hidden = moveFilter !== 'all' && moveVerdicts[index] !== moveFilter;
+                      if (hidden && verdict !== moveFilter) return <span key={movePly} aria-hidden="true" />;
+                      return (
+                        <button
+                          key={movePly}
+                          type="button"
+                          ref={isCurrent ? activeCellRef : undefined}
+                          onClick={() => seek(movePly)}
+                          aria-current={isCurrent ? 'true' : undefined}
+                          title={verdict ? verdict : undefined}
+                          className={`flex items-center justify-between gap-1.5 border-l-2 px-2 py-1 text-left transition-colors ${
+                            isCurrent
+                              ? 'border-accent bg-bone text-ink'
+                              : 'border-transparent hover:border-line hover:bg-bone'
+                          }`}
+                        >
+                          <span className="truncate">{move.san}</span>
+                          <span className="flex shrink-0 items-center gap-1.5">
+                            {verdict ? (
+                              <span
+                                className={`text-[9px] font-bold tracking-[0.04em] uppercase ${
+                                  verdict !== 'forced' ? '' : 'text-muted'
+                                }`}
+                                style={verdict !== 'forced' ? { color: VERDICT_COLOR[verdict] } : undefined}
+                              >
+                                {TAG_LABEL[verdict]}
+                              </span>
+                            ) : null}
+                            {move.clk != null ? (
+                              <span className="text-[10px] text-muted tabular-nums">{formatClock(move.clk)}</span>
+                            ) : null}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 );
               })
             )}
-          </ol>
+          </div>
         </section>
+      </section>
 
-        <EnginePanel fen={fen} />
-
+      {/* ══ COLUMN 3 · post-game analytics ══════════════════════════ */}
+      <div className="min-w-0 space-y-4 lg:col-span-2 xl:col-span-1 xl:max-h-[calc(66dvh+13rem)] xl:overflow-y-auto xl:pr-1">
         <GameReview
           initialFen={startFen}
           moves={moves}
@@ -518,8 +663,9 @@ export default function GameReplay({
           selectedPly={ply}
           onSelectPly={seek}
           onReviewsChange={setMoveVerdicts}
+          onScoresChange={setReviewScores}
         />
-      </aside>
+      </div>
     </div>
   );
 }

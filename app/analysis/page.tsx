@@ -187,7 +187,7 @@ export default function AnalysisPage() {
   const heading = profile?.name ?? username;
 
   return (
-    <div className="mx-auto max-w-6xl px-5 py-10 sm:px-6 sm:py-14">
+    <div className="mx-auto max-w-[1480px] px-5 py-8 sm:px-6 sm:py-10">
       <header className="mb-8 max-w-3xl">
         <p className="font-mono text-[11px] tracking-[0.14em] text-muted uppercase">Game review</p>
         <h1 className="mt-3 text-[clamp(2.2rem,5vw,3.7rem)] leading-none font-extrabold tracking-[-0.045em] text-ink">Analyze a game.</h1>
