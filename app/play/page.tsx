@@ -36,7 +36,7 @@ function freshClock(control: TimeControl, now: number): ClockFields {
 
 export default function PlayPage() {
   const router = useRouter();
-  const { ready, error: engineError, analyse } = useEngine();
+  const { ready, error: engineError, analyse, stop } = useEngine();
   const gameRef = useRef(new Chess());
   const clockRef = useRef<ClockFields>(freshClock(CONTROL_OPTIONS.find((item) => item.id === '5+3')!, Date.now()));
   const movesRef = useRef<GameMove[]>([]);
@@ -100,7 +100,11 @@ export default function PlayPage() {
     setError(null);
     try {
       const side = currentFen.split(' ')[1] === 'w' ? 'w' : 'b';
-      const score = await analyse(currentFen, level.depth);
+      /* Skill Level is sent per search so changing the level mid-game —
+         the settings panel allows it — takes effect from the next move. */
+      const score = await analyse(currentFen, level.depth, undefined, [
+        `setoption name Skill Level value ${level.skill}`,
+      ]);
       if (gameOverRef.current) return;
       const choice = selectEngineMove(currentFen, level, score.best);
       const from = choice.uci.slice(0, 2);
@@ -250,6 +254,15 @@ export default function PlayPage() {
     TimeControl: control.id,
   }, moves, result) : '';
 
+  /* Resigning is the player's call at any moment while the game runs: the
+     engine's in-flight search is released so the worker isn't left thinking
+     over a finished position. */
+  const resign = () => {
+    if (status !== 'playing') return;
+    stop();
+    finish({ result: playerSide === 'w' ? '0-1' : '1-0', termination: 'resignation' });
+  };
+
   const analyseGame = () => {
     if (!result) return;
     const white = playerSide === 'w' ? 'You' : `Engine L${levelId}`;
@@ -342,6 +355,15 @@ export default function PlayPage() {
             <>
               <p className="text-[13px] text-ink">Level {levelId} · {control.label}</p>
               <p className="text-[12px] text-muted">{thinking ? 'Engine turn in progress.' : status === 'finished' ? 'The game is complete.' : `Your turn as ${playerSide === 'w' ? 'White' : 'Black'}.`}</p>
+              {status === 'playing' ? (
+                <button
+                  type="button"
+                  onClick={resign}
+                  className="press min-h-10 w-full border-2 border-loss-fg bg-surface px-3 text-[13px] font-bold text-loss-fg hover:bg-loss-bg"
+                >
+                  Resign
+                </button>
+              ) : null}
             </>
           )}
         </aside>

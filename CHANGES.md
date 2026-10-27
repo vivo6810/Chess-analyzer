@@ -464,3 +464,32 @@ workstation (user-provided spec), same width ceiling on both analysis routes:
 
 Verified: `npm test` 104/104, `tsc --noEmit` clean, production build green.
 The three-column composition needs the browser pass at real resolutions.
+
+## Resign + a real level ladder (2026-10-27)
+
+The user asked for a resign option against Stockfish and doubted whether the
+level selector changed anything. It did — two real knobs — but the top half of
+the ladder was thin, so it now has the third Stockfish itself provides:
+
+- **Resign (`app/play/page.tsx`):** a red `Resign` button in the settings panel
+  while the game is running. It releases the engine's in-flight search
+  (`stop()`), finishes with the player's opposite result and terminates as
+  `resignation`; the normal game-over card (and "Analyse this game" handoff)
+  follows from there as for any other finish.
+- **The honest answer on levels:** they changed already — levels 1–4 differ by
+  search depth (1→5 ply) *and* a chaos probability (30%→5%) of playing an
+  entirely random legal move, and levels 5–8 raise depth (8→18). But above
+  level 5 every search still returned its best move, so the ladder there was
+  depth-only — a real-but-thin difference.
+- **EngineLevel gained `skill`**, mapped 0→20 up the ladder, sent as Stockfish's
+  own UCI `Skill Level setoption` before each `go` (`lib/use-engine.ts`
+  `analyse()` gained an additive `options` parameter). Skill Level dilutes the
+  move choice inside the search itself, so levels 5–8 now separate by
+  judgement too, and mid-game level changes take effect from the next move
+  because the option is per search. Unknown options in a lite build degrade
+  harmlessly (the engine ignores them).
+- New tests pin the ladder: depth strictly increases, chaos weakly decreases,
+  skill strictly increases 0→20, and chaotic play still emits legal, varying
+  UCI moves.
+
+Verified: `npm test` **106/106**, `tsc --noEmit` clean, production build green.

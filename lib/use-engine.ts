@@ -130,9 +130,15 @@ export function useEngine() {
     };
   }, []);
 
-  /** Searches one position to a fixed depth and resolves with the final score. */
+  /**
+   * Searches one position to a fixed depth and resolves with the final score.
+   *
+   * `options` are raw UCI `setoption` lines sent just before the search —
+   * used by the play levels to weaken Stockfish (`Skill Level`), where depth
+   * alone would make every level above ~5 play identically strong.
+   */
   const analyse = useCallback(
-    (fen: string, depth: number, onUpdate?: (score: EngineScore) => void) =>
+    (fen: string, depth: number, onUpdate?: (score: EngineScore) => void, options: string[] = []) =>
       new Promise<EngineScore>((resolve) => {
         const worker = workerRef.current;
         if (!worker) {
@@ -142,6 +148,7 @@ export function useEngine() {
         pendingRef.current = { resolve, onUpdate, last: EMPTY };
         // A new search must not race the previous one.
         worker.postMessage('stop');
+        for (const option of options) worker.postMessage(option);
         worker.postMessage(`position fen ${fen}`);
         worker.postMessage(`go depth ${depth}`);
       }),
