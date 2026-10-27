@@ -23,6 +23,10 @@ const MOVES = [
   'Rd8#',
 ];
 
+/* Morphy's two knight drops and the queen sac — the plies the review
+   engine would have called brilliant, tinted with the brilliant token. */
+const BRILLIANT_PLIES = new Set([18, 24, 30]);
+
 /**
  * Renders the move list twice so the CSS translate can loop seamlessly at -50%:
  * the second copy is already in place exactly when the first scrolls out. The
@@ -37,8 +41,9 @@ export default function NotationMarquee({ className = '' }: { className?: string
         <li
           key={`${token}-${index}`}
           className={`font-mono text-[12px] whitespace-nowrap ${
-            token.endsWith('#') ? 'text-ink' : 'text-muted'
+            BRILLIANT_PLIES.has(index) || token.endsWith('#') ? 'text-ink' : 'text-muted'
           }`}
+          style={BRILLIANT_PLIES.has(index) ? { color: 'var(--color-move-brilliant)', fontWeight: 700 } : undefined}
         >
           {token}
         </li>

@@ -28,7 +28,12 @@ export default function PlayerBoardRow({
     <div className={`flex min-w-0 items-center justify-between gap-2 border-2 px-2.5 py-2 sm:gap-4 sm:px-4 ${active ? 'border-ink bg-bone' : 'border-line bg-surface'}`}>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-          <h3 className="max-w-full truncate text-[13px] font-bold text-ink sm:text-[15px]">{name}</h3>
+          <h3 className="flex min-w-0 max-w-full items-center gap-1.5 truncate text-[13px] font-bold text-ink sm:text-[15px]">
+            {/* The amber tick marks the engine seat as live while it's the
+                engine's turn — the terminal-status pulse from the brief. */}
+            {active && name.startsWith('Engine') ? <span className="engine-status-dot" aria-hidden="true" /> : null}
+            <span className="truncate">{name}</span>
+          </h3>
           <span className="font-mono text-[10px] text-muted">{rating != null ? `${rating} · ` : ''}{label}</span>
         </div>
         <div className="mt-1 flex min-h-5 min-w-0 items-center gap-1.5">

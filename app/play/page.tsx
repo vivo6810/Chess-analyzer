@@ -326,7 +326,7 @@ export default function PlayPage() {
           <ol className="max-h-[28rem] min-h-28 overflow-y-auto p-3 font-mono text-[13px]">
             {moves.length ? moves.map((move, index) => <li key={`${move.uci}-${index}`} className="inline-flex items-center gap-1"><span className="badge m-0.5 bg-bone text-ink">{Math.ceil((index + 1) / 2)}{move.mover === 'w' ? '.' : '…'} {move.san}{move.clk != null ? <span className="text-muted">{Math.floor(move.clk / 60)}:{String(Math.round(move.clk) % 60).padStart(2, '0')}</span> : null}</span></li>) : <li className="text-muted">Your moves appear here.</li>}
           </ol>
-          {thinking ? <p className="border-t-2 border-line px-4 py-3 text-[12px] text-muted">Stockfish is thinking…</p> : null}
+          {thinking ? <p className="border-t-2 border-line px-4 py-3 text-[12px] text-muted"><span className="engine-status-dot" aria-hidden="true" /> Stockfish is thinking…</p> : null}
         </section>
 
         <aside className="space-y-4 border-2 border-ink bg-surface p-4 shadow-brut">

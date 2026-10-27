@@ -244,12 +244,21 @@ export default function GameReplay({
         /* The engine's verdict for the move on the board: the arrival square
            wears the verdict colour, so the classification is on the position
            itself, not only in the move list. Forced is skipped — it grades
-           the absence of an alternative, not the move. */
+           the absence of an alternative, not the move. Brilliant pulses an
+           emissive ring and blunder shakes the square; everything else stays
+           quiet. Reduced-motion strips the animations (globals.css) and the
+           static ring remains. */
         const verdict = moveVerdicts[ply - 1];
         if (verdict && verdict !== 'forced') {
-          paint(last.uci.slice(2, 4), {
-            boxShadow: `inset 0 0 0 4px color-mix(in srgb, ${VERDICT_COLOR[verdict]} 70%, transparent)`,
-          });
+          const ring = `inset 0 0 0 4px color-mix(in srgb, ${VERDICT_COLOR[verdict]} 70%, transparent)`;
+          paint(
+            last.uci.slice(2, 4),
+            verdict === 'brilliant'
+              ? { boxShadow: ring, animation: 'arb-verdict-brilliant 1s ease-out both' }
+              : verdict === 'blunder'
+                ? { boxShadow: ring, animation: 'arb-verdict-blunder 380ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both' }
+                : { boxShadow: ring },
+          );
         }
       }
     }

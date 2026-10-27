@@ -166,6 +166,9 @@
     background: var(--color-canvas);
     box-shadow: 0 1px 3px rgb(0 0 0 / 50%); /* lift the disc off slate squares */
     flex: none;
+    /* Snap onto its move with an elastic overshoot — a verdict arriving
+       should feel stamped, not faded in. */
+    animation: arb-badge-snap-in 280ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
   }
 
   .verdict-color--brilliant { color: var(--color-move-brilliant); }
@@ -314,7 +317,7 @@
   }
 
   .press:active:not(:disabled) {
-    transform: translate(3px, 3px);
+    transform: translate(5px, 5px);
     box-shadow: none;
     transition-duration: 60ms;
   }
@@ -337,6 +340,14 @@
     .lift:hover {
       transform: translate(-2px, -2px);
       box-shadow: 7px 7px 0 0 var(--color-brut);
+    }
+
+    /* Crisp half-step on hover: the surface starts sinking into its own
+       shadow before the click, so the full bottom-out on :active is one
+       continuation of the same mechanical�� move, not a new effect. */
+    .press:hover:not(:disabled) {
+      transform: translate(2px, 2px);
+      box-shadow: 3px 3px 0 0 var(--color-brut);
     }
   }
 
@@ -629,6 +640,20 @@
     animation: arb-marquee 46s linear infinite;
   }
 
+  /* Reading a move is easier when the tape stops under your cursor — and
+     the token under it lifts to ice. */
+  .marquee-mask:hover .marquee-track {
+    animation-play-state: paused;
+  }
+
+  .marquee-track li {
+    transition: color 150ms ease;
+  }
+
+  .marquee-mask:hover .marquee-track li:hover {
+    color: var(--color-ink-soft);
+  }
+
   .marquee-mask {
     mask-image: linear-gradient(
       to right,
@@ -859,5 +884,102 @@
   to {
     opacity: 0;
     transform: scale(1.45);
+  }
+}
+
+/* ── Verdict reactions ──────────────────────────────────────────
+   The review brief's micro-interactions for the two classifications that
+   deserve drama. Colors are raised from the move tokens at run time, so
+   the keyframes need no palette knowledge of their own.
+
+   Brilliant: the verdict ring pops in while one cyan emissive ring expands
+   off the square and dies. Blunder: a sharp horizontal tactical recoil —
+   a camera-shake, not a wobble. */
+@keyframes arb-verdict-brilliant {
+  0% {
+    box-shadow:
+      inset 0 0 0 4px color-mix(in srgb, var(--color-move-brilliant) 70%, transparent),
+      0 0 0 0 color-mix(in srgb, var(--color-move-brilliant) 70%, transparent);
+  }
+  100% {
+    box-shadow:
+      inset 0 0 0 4px color-mix(in srgb, var(--color-move-brilliant) 70%, transparent),
+      0 0 0 14px color-mix(in srgb, var(--color-move-brilliant) 0%, transparent);
+  }
+}
+
+@keyframes arb-verdict-blunder {
+  0% {
+    transform: scale(1);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+  70% {
+    transform: translateX(-2px);
+  }
+  85% {
+    transform: translateX(2px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes arb-badge-snap-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ── Engine presence ────────────────────────────────────────────
+   A terminal-style amber tick beside the engine's name and its thinking
+   line: the pulse says the connection is live without stealing focus. */
+.engine-status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background-color: var(--color-last-move);
+  flex: none;
+  animation: arb-terminal-blink 1.6s steps(2, start) infinite;
+}
+
+@keyframes arb-terminal-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+/* Every motion above is decoration. Motion preferences turn them off;
+   inline square animations (the verdict ring reacts) are covered too —
+   the static ring stays visible as the no-motion fallback. */
+@media (prefers-reduced-motion: reduce) {
+  .verdict-token {
+    animation: none;
+  }
+
+  .engine-status-dot {
+    animation: none;
+  }
+
+  .marquee-mask:hover .marquee-track {
+    animation-play-state: running;
+  }
+
+  .board-shell [data-square] {
+    animation: none !important;
   }
 }

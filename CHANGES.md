@@ -377,3 +377,40 @@ classifications, then committed.
 Verified: `npm test` 104/104, `npm run typecheck` clean, `npm run build`
 succeeds. Badge pixels were reviewed standalone via `artifacts/badge-preview.html`;
 the in-app rendering needs the usual browser pass (cloud VM has no automation).
+
+## Micro-animations pass (2026-10-27)
+
+The user supplied a five-part micro-animation brief and asked it implemented. Each
+piece was matched to what the app actually has — one part has no anchor and was
+recorded as not applicable:
+
+- **Tactile press (`globals.css`):** `.press` now sinks 2px into its own offset
+  shadow on hover (painting `3px 3px` while the base utility is `5px 5px`) and
+  bottoms out fully at `:active` (`translate(5px, 5px)`, shadow none) — the
+  design's mechanical two-stage press measured against our real shadow token.
+  Reduced-motion suppression already covered `.press`.
+- **Verdict reactions (replay board):** brilliant and blunder now react —
+  brilliant runs a one-shot cyan emissive ring (`arb-verdict-brilliant`) that
+  expands past the static inset ring, blunder a 380ms horizontal recoil shake
+  (`arb-verdict-blunder`). Keyframes raise their colors from the
+  `--color-move-*` tokens at run time so the palette stays single-sourced.
+  Other verdicts keep the quiet static ring; reduced-motion strips the
+  animations (`[data-square] { animation: none !important }`) and the static
+  ring remains as the fallback.
+- **Marquee (`notation-marquee.tsx` + CSS):** the landing ticker pauses on
+  hover, the hovered token lifts to ice, and Morphy's three sacrifices
+  (`Nxb5`, `Rxd7+`, `Qb8+`) are tinted with the brilliant cyan token, bold.
+  The `theme.test.ts` "landing limited to hero + marquee" check is untouched.
+- **Engine presence dot (`.engine-status-dot`):** a 6px amber terminal-blink
+  (steps) beside the engine's name in the active `PlayerBoardRow` and on the
+  play page's "Stockfish is thinking…" line. Reduced-motion shows a static dot.
+- **Verdict tokens snap in:** `VerdictToken` discs mount with an elastic
+  overshoot (`arb-badge-snap-in`), replacing a fade-less pop-in.
+- **Not applicable — best-move arrow draw-on:** the design animates an SVG
+  engine-recommendation arrow; the app draws no engine arrows anywhere (grep:
+  none exist, engine output is verbal + eval bar). If best-move arrows are
+  added later, attach `stroke-dasharray`/`stroke-dashoffset` on the path and
+  the existing `--ease-out-editorial` keyframe pattern applies.
+
+Verified: `npm test` 104/104, `tsc --noEmit` clean, production build succeeds.
+Animation motion itself needs the browser pass (no automation in this VM).
