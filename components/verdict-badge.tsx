@@ -26,19 +26,6 @@ export const VERDICT_COLOR: Record<MoveVerdict, string> = {
   blunder: 'var(--color-move-blunder)',
 };
 
-export const VERDICT_LABEL: Record<MoveVerdict, string> = {
-  brilliant: 'brilliant',
-  great: 'great',
-  book: 'book',
-  best: 'best',
-  excellent: 'excellent',
-  good: 'good',
-  inaccuracy: 'inaccuracy',
-  mistake: 'mistake',
-  miss: 'miss',
-  blunder: 'blunder',
-};
-
 /* Cutout geometry per verdict, on a 24×24 grid. The check and cross glyphs
    are shared: excellent/good divide by colour (green vs the muted slate),
    the way chess.com separates them. */
@@ -105,31 +92,5 @@ export function VerdictGlyph({ verdict, className }: { verdict: MoveVerdict; cla
     <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true" focusable="false">
       <use href={`#arb-verdict-${verdict}`} />
     </svg>
-  );
-}
-
-/** Matte move-list pill: glyph + engine label, tinted per verdict. */
-export function VerdictPill({ verdict }: { verdict: MoveVerdict }) {
-  return (
-    <span className={`verdict-pill verdict-pill--${verdict}`}>
-      <VerdictGlyph verdict={verdict} />
-      <span>{VERDICT_LABEL[verdict]}</span>
-    </span>
-  );
-}
-
-/**
- * The circular board-overlay token: a dark-ringed disc the badge rides inside
- * (move-list supers, next to clocks, anywhere a square would not fit).
- */
-export function VerdictToken({ verdict }: { verdict: MoveVerdict }) {
-  return (
-    <span
-      className={`verdict-token verdict-color--${verdict}`}
-      title={VERDICT_LABEL[verdict]}
-      aria-label={VERDICT_LABEL[verdict]}
-    >
-      <VerdictGlyph verdict={verdict} />
-    </span>
   );
 }

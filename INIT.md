@@ -378,10 +378,11 @@ clocks). Format:
 
 ### 7.2 `lib/game.ts` — done
 
-`evaluatePosition(chessInstance)` → `{result, termination}` | null;
-`legalMoveCount(fen)` → number; `buildPgn(headers, moves, result)` → string
-(curly-brace-safe exporter used elsewhere; if `renderPgn` supersedes it for
-clock-bearing games keep both — buildPgn is for headerless quick export).
+`evaluatePosition(chessInstance)` → `{result, termination}` | null. Board rules
+only — the clock surface is gone with the database, and the headerless PGN
+exporter (`buildPgn`) and `legalMoveCount` helper were deleted as dead code;
+`lib/pgn.ts`'s `renderPgn` is the exporter for both the replay and the analysis
+boards.
 
 ### 7.3 Verdicts (`lib/review.ts`) — the expected-points model (2026-10-27)
 
@@ -630,9 +631,11 @@ import { NextResponse } from 'next/server';
 ### 7.10 `components/game-review.tsx` — exists; extend carefully
 
 Current flow (do not disturb): positions array from fens; for each it calls
-`useEngine().analyse(fen, depth=12)`; computes `loss` from position-before vs
-position-after eval; `classifyMove(loss, {onlyMove, matchesBestMove})`;
-`accuracyFromLoss(avg, count)` for both sides (filters by mover). Do not
+`useEngine().analyse(fen, depth=12)`; converts evals to expected points and
+grades with
+`classifyMove(expectedBefore, expectedAfter, context)` per §7.3 (also reads
+mover rating + SAN prefix for book, and `detectSacrifice` for brilliant);
+`accuracyFromLosses(epLosses)` per color (filters by mover). Do not
 convert engine accuracy into an Elo estimate: a single game review cannot
 reliably estimate playing strength. Show Chess.com game ratings when provided;
 otherwise show that the rating is unavailable.
@@ -643,9 +646,9 @@ Additions (this is the "scoreboard like Chess.com"):
    `classifyMove` (you know the position after the mover's move and the
    opponent's best move there from the collected engine data). Read §7.3.
 2. NEW section `Analytics panel` (rendered once run finished):
-   - **Verdict tally segmented bar** per player: excellent/brilliant/best/
-     inaccuracy/mistake/blunder counts with the chip colors from
-     `VERDICT_STYLE`.
+   - **Verdict tally segmented bar** per player over the full ten-verdict
+     vocabulary of §7.3, with the chip colors from `VERDICT_COLOR` / the
+     `--color-move-*` tokens (`VERDICT_STYLE` was deleted).
    - **Eval graph**: SVG polyline over plies; x = ply, y = clampWhiteCp(-500..500)
      scaled to 0..1 where 0.5 = equal. One zero-line. Two labels: white gains
      up, black gains down — but the curve is ONE white-relative series. Add

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { Chess } from 'chess.js';
 
-import { evaluatePosition, legalMoveCount, buildPgn } from './game.ts';
+import { evaluatePosition } from './game.ts';
 
 /* ── Board-determined endings ───────────────────────────────────── */
 
@@ -28,32 +28,4 @@ test('stalemate is a draw', () => {
 
 test('an open position is not over', () => {
   assert.equal(evaluatePosition(new Chess()), null);
-});
-
-/* ── Legal move count ───────────────────────────────────────────── */
-
-test('the starting position has twenty legal moves', () => {
-  assert.equal(legalMoveCount(new Chess().fen()), 20);
-});
-
-test('a forced move is counted as exactly one', () => {
-  // The king must move out of double check — one legal answer only.
-  const fen = '4k3/8/8/8/8/8/R1b1N1b1/2B1K1R1 b - - 0 1';
-  const count = new Chess(fen).moves().length;
-  assert.equal(legalMoveCount(fen), count);
-  assert.ok(count >= 1);
-});
-
-/* ── PGN export ─────────────────────────────────────────────────── */
-
-test('the export carries headers and a result', () => {
-  const pgn = buildPgn({ White: 'Alpha', Black: 'Beta' }, [{ san: 'e4' }, { san: 'e5' }], '1-0');
-  assert.match(pgn, /\[White "Alpha"\]/);
-  assert.match(pgn, /1\. e4 e5 1-0$/);
-});
-
-test('a corrupt tail truncates the export instead of throwing', () => {
-  const pgn = buildPgn({ White: 'A', Black: 'B' }, [{ san: 'e4' }, { san: 'Qxyz9' }], '1-0');
-  assert.match(pgn, /1\. e4/);
-  assert.ok(!pgn.includes('Qxyz9'));
 });

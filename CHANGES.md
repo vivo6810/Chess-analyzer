@@ -549,3 +549,32 @@ remodeled onto it. The centipawn-loss ladder is gone:
   docs). `review.test.ts` re-pinned to EP arithmetic: cutoff table, rating
   steepness, every special rule, book prefix matching, loss measured against
   the position.
+
+## Dead-code sweep + repo re-evaluation (2026-10-27)
+
+A repo-wide re-evaluation after the remodel, cutting what the new vocabulary
+left behind and correcting the docs that still described the old one:
+
+- **`lib/game.ts`** lost `buildPgn` and `legalMoveCount` — both were only
+  reachable from their own tests once the database disappeared (`renderPgn`
+  in `lib/pgn.ts` is the exporter for every surface). Their tests were
+  removed with them; `evaluatePosition` keeps its coverage.
+- **`components/verdict-badge.tsx`** lost `VerdictPill`, `VerdictToken` and
+  `VERDICT_LABEL` — the remodel's live surfaces use `VerdictGlyph` (review
+  list), `VERDICT_COLOR` (replay tags + board ring) and `VerdictSprite`;
+  nothing renders the pill/token shells.
+- **`globals.css`** lost the now-orphaned `verdict-pill`/`verdict-token`/
+  `verdict-color--*` rules, the `--*`-supplying pills' `@layer components`
+  block, the `arb-badge-snap-in` keyframes and their reduced-motion
+  override — all had zero remaining users. The `arb-verdict-brilliant` /
+  `arb-verdict-blunder` board-ring keyframes and the `--color-move-*` tokens
+  stay (all used).
+- **Docs:** INIT §7.2 now states the deletions and points at `renderPgn`;
+  INIT §7.10's flow paragraph grades via
+  `classifyMove(expectedBefore, expectedAfter, context)` +
+  `accuracyFromLosses` and the tally pulls from `VERDICT_COLOR` (the doc
+  still named the deleted `accuracyFromLoss(avg, count)` and
+  `VERDICT_STYLE`). CHANGES entries above are history and are left as
+  written.
+- Verified: `npm test` 108/108, `npm run typecheck` clean, `npm run build`
+  succeeds.

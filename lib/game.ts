@@ -25,30 +25,3 @@ export function evaluatePosition(game: Chess): GameOver | null {
   if (game.isThreefoldRepetition()) return { result: '1/2-1/2', termination: 'repetition' };
   return { result: '1/2-1/2', termination: 'fifty-move' };
 }
-
-export function legalMoveCount(fen: string): number {
-  return new Chess(fen).moves().length;
-}
-
-export function buildPgn(
-  headers: Record<string, string>,
-  moves: { san: string }[],
-  result?: string,
-): string {
-  const game = new Chess();
-  for (const [key, value] of Object.entries(headers)) game.setHeader(key, value);
-  if (result) game.setHeader('Result', result);
-
-  for (const move of moves) {
-    try {
-      game.move(move.san);
-    } catch {
-      break; // A corrupt tail should truncate the export, not throw.
-    }
-  }
-  try {
-    return game.pgn();
-  } catch {
-    return '';
-  }
-}
