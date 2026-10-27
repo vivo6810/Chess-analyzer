@@ -383,57 +383,68 @@ clocks). Format:
 (curly-brace-safe exporter used elsewhere; if `renderPgn` supersedes it for
 clock-bearing games keep both — buildPgn is for headerless quick export).
 
-### 7.3 Verdicts + brilliant detection (`lib/review.ts`) — implemented
+### 7.3 Verdicts (`lib/review.ts`) — the expected-points model (2026-10-27)
 
-Current thresholds (do not change): `EXCELLENT < 20`, `INACCURACY 50`,
-`MISTAKE 100`, `BLUNDER 200` centipawns. `classifyMove(loss, context)` currently
-returns `forced | best | excellent | good | inaccuracy | mistake | blunder`.
+Grading no longer uses centipawn-loss thresholds. Two pure pieces carry it:
 
-**Extend exactly like this (user-specified, Chess.com-like):**
+1. `expectedPoints(cp, rating?)` converts an evaluation into expected points —
+   likely game score (1 win, ½ draw, 0 loss). The decisive share is a logistic
+   in centipawns (`k = 0.00368208 × steepness`); steepness scales with the
+   mover's rating (0.75× at 400 → 1.25× at 2800, 1500 default), because a
+   stronger player converts the same advantage more reliably. A 30% draw
+   cushion sits around equality and decays exponentially with `|cp|`, so EP is
+   ≈0.5 well past one pawn. Mates arrive as ±10000 cp and map to 1/0.
+2. `classifyMove(expectedBefore, expectedAfter, context)` grades by the EP the
+   move spent **against the position's own best line** — a move out of a
+   losing position costs nothing even if it is not the top choice — with the
+   published cutoffs (`EP_CUTOFFS`: excellent 0.02, good 0.05, inaccuracy
+   0.10, mistake 0.20, blunder beyond) and these special rules in precedence
+   order:
+   - `forced` — `onlyMove` (checked first; the pre-position best line may be
+     unavailable there).
+   - `brilliant` — `sacrifice` && loss ≤ good && EP after ≥ 0.40 (not left
+     struggling) && EP before ≤ 0.85 (not already crushing).
+   - `great` — loss ≤ excellent && the move swings across the equal band
+     upward: `(<0.35 → ≥0.35)` or `(≤0.65 → >0.65)`.
+   - `miss` — `expectedBefore ≥ WIN_EP (0.75)` and `expectedAfter < 0.75`:
+     the win was available and was dropped.
+   - `book` — `isBookMove(sans up to this ply)` — the SAN prefix still lies
+     inside the curated `OPENINGS` table (cap 24 plies) — and loss ≤ good.
+   - then the plain EP ladder: best (`matchesBestMove` or loss ≤ 0.004) →
+     excellent → good → inaccuracy → mistake → blunder.
 
-1. Add `'brilliant'` to `MoveVerdict`.
-2. Add a pure helper in the same file:
-
-   ```ts
-   export function detectSacrifice(
-     fenAfter: string,             // position AFTER the mover's move
-     opponentBestUci: string | null, // engine's best move for the OPPONENT there
-   ): boolean
-   ```
-
-   Algorithm (approximation is fine; document it): piece values `{p:1, n:3,
-   b:3, r:5, q:9}`. From `fenAfter`, build `new Chess(fenAfter)`; if
-   `opponentBestUci` is null → false (no engine info, no verdict). Play
-   opponent's best move. If it is **not a capture** → false (a brilliant also
-   needs some material being given up). Let `gain` = value of the piece the
-   opponent captured. Now in the resulting position, scan the mover's legal
-   replies for the best immediate recapture clawback `claw` (max captured
-   value). Return `gain >= 3 && (gain - claw) >= 3` — i.e. the mover is down
-   at least a piece's worth of material even after their best reply. Comment
-   every step. This is deliberately board-only (no deep lines), deterministic
-   and testable.
-3. In `classifyMove`, accept `sacrifice?: boolean` in `context`. Order of
-   precedence becomes: `forced` → `brilliant` (sacrifice && loss < EXCELLENT_CP)
-   → `best` (matchesBestMove) → then the loss ladder as today (excellent/good/
-   inaccuracy/mistake/blunder). A brilliant is only reachable for intentful,
-   accurate moves: that is the "reserved for sacrifices" clause the user wrote.
-4. `review.test.ts` — port the old verdict tests (they used to live inside
-   `game.test.ts`; the ladder: 0/19→excellent, 20/49→good, 50/99→inaccuracy,
-   100/199→mistake, ≥200→blunder, `onlyMove`→forced, `matchesBestMove`→best)
-   plus new ones: a known sacrifice turns `best` into `brilliant` (e.g. knight
-   offered to a pawn), a recaptured sacrifice does not, no-opponent-info
-   returns false.
+`detectSacrifice(fenAfter, opponentBestUci)` is unchanged: board-only,
+deterministic (capture + best immediate recapture claw, minor piece. `gain ≥ 3
+&& gain − claw ≥ 3`). Accuracy is **`accuracyFromLosses(expectedPointLosses)`**
+— the CAPS2 spirit: the game's score is a gentle exponential of the *average
+expected-points loss* (`100 · exp(−2.2 · avgLoss)`), so ordinary play lands in
+the 50–95 school band instead of the old single digits while a zero-loss game
+stays 100, and being rating-aware in expected points it is automatically
+rating-fair. It is an approximation of chess.com's proprietary curve, not a
+copy; centipawn loss survives only in the move-list loss column and the
+profile's per-mode cp-loss summaries.
+Callers must supply the mover's rating when known (GameReview passes
+`whiteRating`/`blackRating`; the profile pass reads `remote.white/black.rating`)
+and SAN prefixes for the book rule. `MoveVerdict` is the eleven-string union:
+`forced | brilliant | great | book | best | excellent | good | inaccuracy |
+mistake | miss | blunder` — any `Record<MoveVerdict, …>` map must carry all
+keys; MATRIX_VERDICTS (matrix/tally/badges) covers the ten graded ones.
+Tests pin the cutoff table, the rating steepness, every special rule and the
+book prefix matcher.
 
 ### 7.4 Engine levels (`lib/engine-levels.ts`) — implemented
 
 ```ts
-export type EngineLevel = { id: number; label: string; depth: number; chaos: number; eloLabel?: string };
-export const ENGINE_LEVELS: EngineLevel[] = [
-  // depth = how deep useEngine().analyse() searches for THIS side's move;
-  // chaos = probability 0..1 that the move played is a random legal move
-  { id: 1, label: 'Level 1', depth: 1, chaos: 0.3 },
-  { id: 2, label: 'Level 2', depth: 2, chaos: 0.2 },
-  { id: 3, label: 'Level 3', depth: 3, chaos: 0.1 },
+export type EngineLevel = { id: number; label: string; depth: number; chaos: number; skill: number; eloLabel?: string };
+```
+Three weakening knobs: `depth` (what `useEngine().analyse()` searches),
+`chaos` (probability the move is an outright random legal move, levels 1–4
+only), and `skill` — Stockfish's own UCI `Skill Level` (0–20), sent as a
+`setoption` before every search by the play page (see `lib/use-engine.ts`
+`analyse(fen, depth, onUpdate?, options)`). The L1..L8 ladder is
+(1, 0.3, 0), (2, 0.2, 1), (3, 0.1, 3), (5, 0.05, 6), (8, 0, 9),
+(12, 0, 11), (14, 0, 14), (18, 0, 20); tests pin depth strictly increasing,
+chaos weakly decreasing, skill strictly increasing 0→20.  { id: 3, label: 'Level 3', depth: 3, chaos: 0.1 },
   { id: 4, label: 'Level 4', depth: 5, chaos: 0.05 },
   { id: 5, label: 'Level 5', depth: 8, chaos: 0 },
   { id: 6, label: 'Level 6', depth: 12, chaos: 0 },

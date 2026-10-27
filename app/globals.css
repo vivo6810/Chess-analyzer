@@ -96,9 +96,12 @@
   --color-move-brilliant: #26c6da;
   --color-move-critical: #5c8bb0;
   --color-move-best: #66bb6a;
+  --color-move-excellent: #9ccc65;
+  --color-move-good: #94a3b8;
   --color-move-book: #a88865;
   --color-move-inaccuracy: #fbc02d;
   --color-move-mistake: #fb8c00;
+  --color-move-miss: #e57373;
   --color-move-blunder: #e53935;
 
   /* Split-flap clock: an inset steel display with ice digits. */
@@ -172,11 +175,14 @@
   }
 
   .verdict-color--brilliant { color: var(--color-move-brilliant); }
+  .verdict-color--great { color: var(--color-move-critical); }
   .verdict-color--best { color: var(--color-move-best); }
-  .verdict-color--excellent { color: var(--color-move-critical); }
-  .verdict-color--good { color: var(--color-move-book); }
+  .verdict-color--excellent { color: var(--color-move-excellent); }
+  .verdict-color--good { color: var(--color-move-good); }
+  .verdict-color--book { color: var(--color-move-book); }
   .verdict-color--inaccuracy { color: var(--color-move-inaccuracy); }
   .verdict-color--mistake { color: var(--color-move-mistake); }
+  .verdict-color--miss { color: var(--color-move-miss); }
   .verdict-color--blunder { color: var(--color-move-blunder); }
   .verdict-color--forced { color: var(--color-line-strong); }
 
@@ -186,6 +192,12 @@
     border-color: color-mix(in srgb, var(--color-move-brilliant) 28%, transparent);
   }
 
+  .verdict-pill--great {
+    color: var(--color-move-critical);
+    background-color: color-mix(in srgb, var(--color-move-critical) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-move-critical) 32%, transparent);
+  }
+
   .verdict-pill--best {
     color: var(--color-move-best);
     background-color: color-mix(in srgb, var(--color-move-best) 12%, transparent);
@@ -193,15 +205,27 @@
   }
 
   .verdict-pill--excellent {
-    color: var(--color-move-critical);
-    background-color: color-mix(in srgb, var(--color-move-critical) 14%, transparent);
-    border-color: color-mix(in srgb, var(--color-move-critical) 32%, transparent);
+    color: var(--color-move-excellent);
+    background-color: color-mix(in srgb, var(--color-move-excellent) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-move-excellent) 28%, transparent);
   }
 
   .verdict-pill--good {
+    color: var(--color-move-good);
+    background-color: color-mix(in srgb, var(--color-move-good) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-move-good) 30%, transparent);
+  }
+
+  .verdict-pill--book {
     color: var(--color-move-book);
     background-color: color-mix(in srgb, var(--color-move-book) 14%, transparent);
     border-color: color-mix(in srgb, var(--color-move-book) 30%, transparent);
+  }
+
+  .verdict-pill--miss {
+    color: var(--color-move-miss);
+    background-color: color-mix(in srgb, var(--color-move-miss) 14%, transparent);
+    border-color: color-mix(in srgb, var(--color-move-miss) 30%, transparent);
   }
 
   .verdict-pill--inaccuracy {

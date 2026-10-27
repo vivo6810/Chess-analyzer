@@ -32,7 +32,7 @@ test('the skill ladder strictly strengthens towards level 8', () => {
   assert.equal(ENGINE_LEVELS[ENGINE_LEVELS.length - 1].skill, 20);
 });
 
-test('the resignment endpoint of chaos still plays real legal moves', () => {
+test('the chaotic end of the ladder still plays legal, varying moves', () => {
   const seen = new Set<string>();
   for (let attempt = 0; attempt < 200; attempt += 1) {
     const result = selectEngineMove(

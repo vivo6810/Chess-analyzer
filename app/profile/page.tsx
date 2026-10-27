@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 import { legalMoveCount } from '@/lib/game';
-import { detectSacrifice, classifyMove, accuracyFromLoss, type MoveVerdict } from '@/lib/review';
+import { detectSacrifice, classifyMove, expectedPoints, accuracyFromLosses, isBookMove, type MoveVerdict } from '@/lib/review';
 import { parsePgn } from '@/lib/pgn';
 import { useEngine } from '@/lib/use-engine';
 import { listProfiles, rememberProfile, type ProfileEntry } from '@/lib/local-user';
@@ -40,7 +40,7 @@ type Summary = {
 };
 
 const emptySummary = (): Summary => ({
-  verdicts: { forced: 0, brilliant: 0, best: 0, excellent: 0, good: 0, inaccuracy: 0, mistake: 0, blunder: 0 },
+  verdicts: { forced: 0, brilliant: 0, great: 0, book: 0, best: 0, excellent: 0, good: 0, inaccuracy: 0, mistake: 0, miss: 0, blunder: 0 },
   phases: { w: [0, 0, 0], b: [0, 0, 0] },
   losses: {},
   modeLosses: {},
@@ -51,9 +51,36 @@ const emptySummary = (): Summary => ({
   playerAccuracyTotal: 0,
   playerAccuracyGames: 0,
 });
-const VERDICTS: MoveVerdict[] = ['blunder', 'mistake', 'inaccuracy', 'excellent', 'brilliant', 'best', 'good'];
-const VERDICT_NAMES: Record<MoveVerdict, string> = { forced: 'forced', brilliant: 'brilliant', best: 'best', excellent: 'excellent', good: 'good', inaccuracy: 'inaccuracy', mistake: 'mistake', blunder: 'blunder' };
-const VERDICT_COLORS: Record<MoveVerdict, string> = { forced: 'bg-bone text-muted', brilliant: 'bg-info-bg text-info-fg', best: 'bg-win-bg text-win-fg', excellent: 'bg-win-bg text-win-fg', good: 'bg-bone text-muted', inaccuracy: 'bg-draw-bg text-draw-fg', mistake: 'bg-loss-bg text-loss-fg', blunder: 'bg-loss-fg text-loss-bg' };
+const VERDICT_TILES: MoveVerdict[] = [
+  'brilliant', 'great', 'best', 'excellent', 'book', 'good',
+  'inaccuracy', 'mistake', 'miss', 'blunder',
+];
+const VERDICT_NAMES: Record<MoveVerdict, string> = {
+  forced: 'forced',
+  brilliant: 'brilliant',
+  great: 'great',
+  book: 'book',
+  best: 'best',
+  excellent: 'excellent',
+  good: 'good',
+  inaccuracy: 'inaccuracy',
+  mistake: 'mistake',
+  miss: 'miss',
+  blunder: 'blunder',
+};
+const VERDICT_COLORS: Record<MoveVerdict, string> = {
+  forced: 'bg-bone text-muted',
+  brilliant: 'bg-info-bg text-info-fg',
+  great: 'bg-info-bg text-info-fg',
+  book: 'bg-bone text-muted',
+  best: 'bg-win-bg text-win-fg',
+  excellent: 'bg-win-bg text-win-fg',
+  good: 'bg-bone text-muted',
+  inaccuracy: 'bg-draw-bg text-draw-fg',
+  mistake: 'bg-loss-bg text-loss-fg',
+  miss: 'bg-loss-bg text-loss-fg',
+  blunder: 'bg-loss-fg text-loss-bg',
+};
 const openingName = (opening: string) => opening.replace(/^[A-E]\d{1,2}\s*[-:·]?\s*/i, '').trim();
 
 export default function ProfilePage() {
@@ -129,6 +156,7 @@ export default function ProfilePage() {
         const best: (string | null)[] = [];
         const gameLosses: number[] = [];
         const playerLosses: number[] = [];
+        const playerEpLosses: number[] = [];
         for (const fen of positions) {
           const turn = fen.split(' ')[1] === 'w' ? 'w' : 'b';
           const score = await analyse(fen, 8);
@@ -142,15 +170,23 @@ export default function ProfilePage() {
         for (let index = 0; index < game.moves.length; index += 1) {
           const move = game.moves[index];
           const mover = positions[index].split(' ')[1] === 'w' ? 'w' : 'b';
+          /* Expected points from the mover's own seat and rating, so the
+             ladder matches the analyzer's grading. */
+          const moverCp = (cp: number) => (mover === 'w' ? cp : -cp);
+          const moverRating = mover === 'w' ? remote.white?.rating : remote.black?.rating;
+          const expectedBefore = expectedPoints(moverCp(scores[index]), moverRating);
+          const expectedAfter = expectedPoints(moverCp(scores[index + 1]), moverRating);
           const loss = Math.max(0, mover === 'w' ? scores[index] - scores[index + 1] : scores[index + 1] - scores[index]);
-          const verdict = classifyMove(loss, {
+          const verdict = classifyMove(expectedBefore, expectedAfter, {
             onlyMove: legalMoveCount(positions[index]) === 1,
             matchesBestMove: best[index] === move.uci,
             sacrifice: detectSacrifice(positions[index + 1], best[index + 1]),
+            book: isBookMove(game.moves.slice(0, index + 1).map((entry) => entry.san)),
           });
           report.verdicts[verdict] += 1;
           if (mover === ownColor) {
             playerLosses.push(loss);
+            playerEpLosses.push(Math.max(0, Math.min(1, expectedBefore - expectedAfter)));
             if (verdict === 'blunder') report.playerBlunders += 1;
           }
           const moveNumber = Math.ceil((index + 1) / 2);
@@ -165,9 +201,8 @@ export default function ProfilePage() {
           const averageLoss = gameLosses.reduce((sum, loss) => sum + loss, 0) / gameLosses.length;
           (report.losses[mode] ??= []).push(averageLoss);
         }
-        if (playerLosses.length) {
-          const averagePlayerLoss = playerLosses.reduce((sum, loss) => sum + loss, 0) / playerLosses.length;
-          report.playerAccuracyTotal += accuracyFromLoss(averagePlayerLoss, playerLosses.length);
+        if (playerEpLosses.length) {
+          report.playerAccuracyTotal += accuracyFromLosses(playerEpLosses);
           report.playerAccuracyGames += 1;
         }
       }
@@ -287,8 +322,7 @@ export default function ProfilePage() {
           </section>
           {summary ? (
             <>
-              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {VERDICTS.map((verdict) => <div key={verdict} className={`border-2 border-line p-4 ${VERDICT_COLORS[verdict]}`}><p className="text-[11px] font-bold uppercase">{VERDICT_NAMES[verdict]}</p><p className="mt-2 font-mono text-3xl tabular-nums">{summary.verdicts[verdict]}</p></div>)}
+              <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">                  {VERDICT_TILES.map((verdict) => <div key={verdict} className={`border-2 border-line p-4 ${VERDICT_COLORS[verdict]}`}><p className="text-[11px] font-bold uppercase">{VERDICT_NAMES[verdict]}</p><p className="mt-2 font-mono text-3xl tabular-nums">{summary.verdicts[verdict]}</p></div>)}
               </section>
               <section className="grid gap-5 lg:grid-cols-2">
                 <div className="border-2 border-ink bg-surface p-5 shadow-brut">
@@ -312,7 +346,7 @@ export default function ProfilePage() {
                 </svg>
                 <div className="mt-3 flex flex-wrap gap-3">{Object.entries(summary.modeLosses).map(([mode, losses]) => {
                   const mean = losses.reduce((sum, loss) => sum + loss, 0) / Math.max(1, losses.length);
-                  return <span key={mode} className="badge bg-bone text-ink">{mode} · {Math.round(mean)} cp loss · {accuracyFromLoss(mean, losses.length)}% accuracy estimate</span>;
+                  return <span key={mode} className="badge bg-bone text-ink">{mode} · {Math.round(mean)} cp loss</span>;
                 })}</div>
               </section>
               <section className="border-2 border-ink bg-surface p-5 shadow-brut"><h3 className="font-bold text-ink">Win / draw / loss</h3><p className="mt-2 text-[13px] text-muted">{summary.outcomes.wins} wins · {summary.outcomes.draws} draws · {summary.outcomes.losses} losses · {summary.games} games</p></section>

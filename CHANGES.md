@@ -493,3 +493,56 @@ the ladder was thin, so it now has the third Stockfish itself provides:
   UCI moves.
 
 Verified: `npm test` **106/106**, `tsc --noEmit` clean, production build green.
+
+## Expected-points remodel of the review system (2026-10-27)
+
+The user supplied chess.com's Classification V2 documentation (the Expected
+Points Model plus the Great/Brilliant/Miss rules) and asked the review system
+remodeled onto it. The centipawn-loss ladder is gone:
+
+- **`lib/review.ts` rewritten around expected points.**
+  `expectedPoints(cp, rating)` turns an evaluation into a likely game score:
+  logistic decisive share whose steepness scales with the **mover's rating**
+  (0.75× at 400 → 1.25× at 2800), plus a 30% draw cushion decaying
+  exponentially away from equality — the same eval is worth more to a 2300
+  than to a 700, which is exactly chess.com's "more generous for new
+  players". Mates arrive as ±10000 cp → EP 1/0.
+- **`classifyMove(expectedBefore, expectedAfter, context)`** grades by the EP
+  the move spent *against the position's own best line* (escaping a losing
+  position costs nothing), then applies chess.com's published cutoffs
+  (`EP_CUTOFFS` excellent 0.02 / good 0.05 / inaccuracy 0.10 / mistake 0.20) —
+  `MoveVerdict` gains `great`, `book` and `miss` (eleven verdicts total):
+  - **great** — near-best move that swings across the equal band upward
+    (losing→unclear, unclear→winning),
+  - **miss** — the position was winning (EP ≥ 0.75) before the move and is
+    not after it,
+  - **book** — `isBookMove(sans-prefix)` against the curated `OPENINGS` table
+    (cap 24 plies) while the move still holds its own (loss ≤ 0.05).
+  - brilliant keeps the sacrifice rule with the new "not from a bad position
+    (EP after ≥ 0.40)" and "not already crushing (EP before ≤ 0.85)"
+    conditions; `forced` and the `best` rule (matches engine first choice) are
+    unchanged; precedence forced → brilliant → great → miss → book → ladder.
+- **Callers:** `GameReview` computes EP per position with the mover's rating
+  (`whiteRating`/`blackRating` props) and SAN prefixes for book; the profile
+  pass uses `remote.white/black.rating`; a per-move `isBookMove` walk replaces
+  nothing else.
+- **Accuracy remodeled to the CAPS2 spirit** (from the second article the user
+  supplied): the old CAPS1-style `accuracyFromLoss(averageCpLoss, count)` was
+  replaced by **`accuracyFromLosses(expectedPointLosses)`** — the game's score
+  is `100 · exp(−2.2 × average EP loss)`, so ordinary play lands in the
+  school-like 50–95 band instead of single digits, a zero-loss game stays 100,
+  and EP's rating-awareness makes the scale fair across ratings for free.
+  It is a documented approximation of chess.com's proprietary curve, not a
+  copy. `PlyReview` carries `epLoss`; the profile pass feeds own-color EP
+  losses into the same helper (the per-mode chips keep plain cp loss).
+- **UI:** the matrix/tally lists carry the ten graded verdicts; three new
+  color tokens (`--color-move-excellent #9ccc65`, `--color-move-good #94a3b8`,
+  `--color-move-miss #e57373`), two new glyphs (✓ for excellent/good split by
+  color, ✗ for miss) plus the recovered single-`!` glyph for great and the
+  book glyph; profile verdict tiles grow to ten; replay move-table tags grow
+  GREAT/BOOK/MISS and the board-ring prefers sacrifice over book-noise by
+  skipping rings for `book`.
+- **Docs:** INIT §7.3/§7.4 rewritten to the current model (code wins over
+  docs). `review.test.ts` re-pinned to EP arithmetic: cutoff table, rating
+  steepness, every special rule, book prefix matching, loss measured against
+  the position.

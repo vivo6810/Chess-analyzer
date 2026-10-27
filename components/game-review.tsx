@@ -3,10 +3,13 @@
 import { useMemo, useState } from 'react';
 
 import { legalMoveCount } from '@/lib/game';
+import { openingForMoves } from '@/lib/openings';
 import {
-  accuracyFromLoss,
+  accuracyFromLosses,
   classifyMove,
   detectSacrifice,
+  expectedPoints,
+  isBookMove,
   type MoveVerdict,
 } from '@/lib/review';
 import { VERDICT_COLOR, VerdictGlyph } from '@/components/verdict-badge';
@@ -19,6 +22,8 @@ type PlyReview = {
   san: string;
   mover: Side;
   loss: number;
+  /** Expected points this move spent against the position's best line. */
+  epLoss: number;
   verdict: MoveVerdict;
   cpWhite: number;
 };
@@ -26,11 +31,14 @@ type PlyReview = {
 const VERDICT_BAR_STYLE: Record<MoveVerdict, string> = {
   forced: 'bg-line-strong',
   brilliant: 'bg-move-brilliant',
+  great: 'bg-move-critical',
   best: 'bg-move-best',
-  excellent: 'bg-move-critical',
-  good: 'bg-move-book',
+  excellent: 'bg-move-excellent',
+  book: 'bg-move-book',
+  good: 'bg-move-good',
   inaccuracy: 'bg-move-inaccuracy',
   mistake: 'bg-move-mistake',
+  miss: 'bg-move-miss',
   blunder: 'bg-move-blunder',
 };
 
@@ -38,15 +46,32 @@ const VERDICT_BAR_STYLE: Record<MoveVerdict, string> = {
  * The graded verdicts, in the order the matrix lists them. Forced stays out —
  * it grades the absence of an alternative, not the move.
  */
-const MATRIX_VERDICTS: MoveVerdict[] = ['brilliant', 'best', 'excellent', 'good', 'inaccuracy', 'mistake', 'blunder'];
+/* The graded verdicts, in the order the matrix lists them — chess.com's
+   presentation order. Forced stays out: it grades the absence of an
+   alternative, not the move. */
+const MATRIX_VERDICTS: MoveVerdict[] = [
+  'brilliant',
+  'great',
+  'best',
+  'excellent',
+  'book',
+  'good',
+  'inaccuracy',
+  'mistake',
+  'miss',
+  'blunder',
+];
 const LABEL: Record<MoveVerdict, string> = {
-  inaccuracy: 'inaccuracy',
   forced: 'forced',
   brilliant: 'brilliant',
+  great: 'great',
+  book: 'book',
   best: 'best',
   excellent: 'excellent',
   good: 'good',
+  inaccuracy: 'inaccuracy',
   mistake: 'mistake',
+  miss: 'miss',
   blunder: 'blunder',
 };
 
@@ -121,20 +146,29 @@ export default function GameReview({
       }
       const output = moves.map((move, index): PlyReview => {
         const mover = TURN(positions[index]);
-        const before = collected[index];
-        const after = collected[index + 1];
-        const loss = Math.max(0, mover === 'w' ? before - after : after - before);
+        /* The expected-points model wants the evaluation from the mover's own
+           seat, weighted by the mover's rating — the same eval is worth more
+           to a 2300 than to a 700. Ratings arrive per player from the game. */
+        const moverCp = (cp: number) => (mover === 'w' ? cp : -cp);
+        const moverRating = mover === 'w' ? whiteRating : blackRating;
+        const before = expectedPoints(moverCp(collected[index]), moverRating);
+        const after = expectedPoints(moverCp(collected[index + 1]), moverRating);
+        const whiteBefore = mover === 'w' ? collected[index] : -collected[index];
+        const whiteAfter = collected[index + 1];
+        const loss = Math.max(0, whiteBefore - whiteAfter); // centipawns, for the loss column
         return {
           ply: index + 1,
           san: move.san,
           mover,
           loss,
-          verdict: classifyMove(loss, {
+          epLoss: Math.max(0, Math.min(1, before - after)),
+          verdict: classifyMove(before, after, {
             onlyMove: legalMoveCount(positions[index]) === 1,
             matchesBestMove: bestMoves[index] === move.uci,
             sacrifice: detectSacrifice(positions[index + 1], bestMoves[index + 1]),
+            book: isBookMove(moves.slice(0, index + 1).map((entry) => entry.san)),
           }),
-          cpWhite: after,
+          cpWhite: whiteAfter,
         };
       });
       setScores(collected);
@@ -151,8 +185,7 @@ export default function GameReview({
   const sideStats = (side: Side) => {
     const mine = reviews.filter((review) => review.mover === side);
     if (!mine.length) return null;
-    const average = mine.reduce((sum, review) => sum + review.loss, 0) / mine.length;
-    const accuracy = accuracyFromLoss(average, mine.length);
+    const accuracy = accuracyFromLosses(mine.map((review) => review.epLoss));
     return {
       accuracy,
       rating: side === 'w' ? whiteRating : blackRating,

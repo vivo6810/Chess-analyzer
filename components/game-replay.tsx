@@ -86,11 +86,14 @@ const formatClock = (clk: number) =>
 /* Short verdict tags for the move table, colored by the verdict tokens. */
 const TAG_LABEL: Partial<Record<MoveVerdict, string>> = {
   brilliant: 'BRIL',
+  great: 'GREAT',
+  book: 'BOOK',
   best: 'BEST',
   excellent: 'EXC',
   good: 'GOOD',
   inaccuracy: 'INACC',
   mistake: 'MIST',
+  miss: 'MISS',
   blunder: 'BLUND',
   forced: '· forced ·',
 };
@@ -289,7 +292,7 @@ export default function GameReplay({
            quiet. Reduced-motion strips the animations (globals.css) and the
            static ring remains. */
         const verdict = moveVerdicts[ply - 1];
-        if (verdict && verdict !== 'forced') {
+        if (verdict && verdict !== 'forced' && verdict !== 'book') {
           const ring = `inset 0 0 0 4px color-mix(in srgb, ${VERDICT_COLOR[verdict]} 70%, transparent)`;
           paint(
             last.uci.slice(2, 4),
